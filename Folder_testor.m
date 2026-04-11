@@ -1,32 +1,54 @@
-function results = Folder_testor(oodFolder, rejectThreshold)
+function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 % Folder_testor Run manifold OOD rejection before CNN/MLP classification.
 %
-%   RESULTS = Folder_testor() first applies MD_filter to KMNIST_japanese using
-%   vigilance 0.7, then sends only accepted samples to the cached CNN and MLP
-%   classifiers trained on MNIST_digits/raw.
+%   RESULTS = Folder_testor() prompts for training and testing folders,
+%   then evaluates OOD samples using manifold filter followed by CNN/MLP.
 %
-%   RESULTS = Folder_testor(oodFolder) evaluates OOD samples from oodFolder.
+%   RESULTS = Folder_testor(trainFolder, testFolder) uses specified folders.
 %
-%   RESULTS = Folder_testor(oodFolder, rejectThreshold) uses rejectThreshold
-%   as the MD_filter vigilance threshold in [0,1].
+%   RESULTS = Folder_testor(trainFolder, testFolder, rejectThreshold) uses
+%   rejectThreshold as the MD_filter vigilance threshold in [0,1].
 
-	if nargin < 1 || strlength(string(oodFolder)) == 0
-		here = fileparts(mfilename('fullpath'));
-		oodFolder = fullfile(here, 'KMNIST_japanese');
+	here = fileparts(mfilename('fullpath'));
+	
+	% Get training folder from user
+	if nargin < 1 || strlength(string(trainFolder)) == 0
+		trainPrompt = sprintf('Enter training folder path (default: %s): ', fullfile(here, 'MNIST_digits', 'raw'));
+		trainInput = input(trainPrompt, 's');
+		if strlength(string(trainInput)) == 0
+			trainRoot = fullfile(here, 'MNIST_digits', 'raw');
+		else
+			trainRoot = trainInput;
+		end
+	else
+		trainRoot = trainFolder;
+	end
+	
+	% Get testing folder from user
+	if nargin < 2 || strlength(string(testFolder)) == 0
+		testPrompt = sprintf('Enter testing/OOD folder path (default: %s): ', fullfile(here, 'KMNIST_japanese'));
+		testInput = input(testPrompt, 's');
+		if strlength(string(testInput)) == 0
+			oodFolder = fullfile(here, 'KMNIST_japanese');
+		else
+			oodFolder = testInput;
+		end
+	else
+		oodFolder = testFolder;
 	end
 
-	if nargin < 2 || isempty(rejectThreshold)
+	if nargin < 3 || isempty(rejectThreshold)
 		rejectThreshold = 0.7;
 	end
 	if rejectThreshold < 0 || rejectThreshold > 1
 		error('Folder_testor:badThreshold', ...
 			'rejectThreshold must be between 0 and 1.');
 	end
+	fprintf('=== Folder Testor Configuration ===\n');
+	fprintf('loading training data from: %s\n', getSetFolderPaths(trainRoot));
+	fprintf('Running inference test on: %s\n', getSetFolderPaths(oodFolder));
 
-	here = fileparts(mfilename('fullpath'));
-	trainRoot = fullfile(here, 'MNIST_digits', 'raw');
-
-	fprintf('=== OOD manifold filter ===\n');
+	fprintf('\n=== OOD manifold filter ===\n');
 	mdResults = MD_filter(oodFolder, rejectThreshold, false, false);
 	fprintf('Vigilance: %.2f\n', rejectThreshold);
 	fprintf('Samples:   %d\n', numel(mdResults.Accepted));

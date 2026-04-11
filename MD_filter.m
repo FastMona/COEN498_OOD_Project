@@ -44,7 +44,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 	if nargin < 1 || isempty(testInput)
 		if verboseOutput
 			fprintf('\nMD_filter model ready\n');
-			fprintf('Train data: %s\n', trainRoot);
+			fprintf('Train data: %s\n', getSetFolderPaths(trainRoot));
 			fprintf('Digits modeled: 0..9\n');
 		end
 		results = struct();
@@ -71,7 +71,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 
 	if verboseOutput
 		fprintf('\nMD_filter summary\n');
-		fprintf('Input:      %s\n', inputSource);
+		fprintf('Running inference test on: %s\n', inputSource);
 		fprintf('Vigilance:  %.2f\n', vigilance);
 		fprintf('Samples:    %d\n', numSamples);
 		fprintf('Accepted:   %d (%.2f%%)\n', acceptedCount, 100 * acceptedCount / numSamples);
@@ -120,14 +120,14 @@ function model = loadOrTrainModel(trainRoot, forceRetrain, verboseOutput)
 				isfield(data.cacheMeta, 'trainRoot') && strcmp(data.cacheMeta.trainRoot, trainRoot)
 			model = data.model;
 			if verboseOutput
-				fprintf('Loaded cached manifold model from: %s\n', cacheFile);
+				fprintf('Loaded cached manifold model from: %s\n', getSetFolderPaths(cacheFile));
 			end
 			return;
 		end
 	end
 
 	if verboseOutput
-		fprintf('Training manifold model from: %s\n', trainRoot);
+		fprintf('Training manifold model from: %s\n', getSetFolderPaths(trainRoot));
 	end
 	[XTrain, YTrain] = loadTrainFeatures(trainRoot);
 	model = trainDigitManifolds(XTrain, YTrain);
@@ -137,7 +137,7 @@ function model = loadOrTrainModel(trainRoot, forceRetrain, verboseOutput)
 	cacheMeta.savedAt = char(datetime('now'));
 	save(cacheFile, 'model', 'cacheMeta', '-v7.3');
 	if verboseOutput
-		fprintf('Saved manifold model to: %s\n', cacheFile);
+		fprintf('Saved manifold model to: %s\n', getSetFolderPaths(cacheFile));
 	end
 end
 
