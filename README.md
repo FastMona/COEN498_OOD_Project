@@ -16,25 +16,25 @@ Expected top-level structure:
 
 ```text
 COEN498_OOD_Project/
-	CNN_reader.m
-	MLP_reader.m
-	MD_filter.m
-	Folder_testor.m
-	visualize_examples.m
-	visualize_ood_examples.m
-	MNIST_digits/raw/
-		train-images-idx3-ubyte
-		train-labels-idx1-ubyte
-		t10k-images-idx3-ubyte
-		t10k-labels-idx1-ubyte
-	KMNIST_japanese/
-		t10k-images-idx3-ubyte
-		t10k-labels-idx1-ubyte
-	trained_models/
-		cnn_reader_cache.mat
-		mlp_reader_cache.mat
-		md_filter_cache.mat
-		folder_paths_cache.mat
+    CNN_reader.m
+    MLP_reader.m
+    MD_filter.m
+    Folder_testor.m
+    visualize_examples.m
+    visualize_ood_examples.m
+    MNIST_digits/raw/
+        train-images-idx3-ubyte
+        train-labels-idx1-ubyte
+        t10k-images-idx3-ubyte
+        t10k-labels-idx1-ubyte
+    KMNIST_japanese/
+        t10k-images-idx3-ubyte
+        t10k-labels-idx1-ubyte
+    trained_models/
+        cnn_reader_cache.mat
+        mlp_reader_cache.mat
+        md_filter_cache.mat
+        folder_paths_cache.mat
 ```
 
 The provided dataset folders in this repository already follow the naming expected by the scripts.
@@ -61,9 +61,9 @@ Default behavior:
 
 - OOD threshold (`rejectThreshold` / vigilance): `0.5`
 - Training/test folder roots are resolved by `getSetFolderPaths.m`
-	- uses saved paths from `trained_models/folder_paths_cache.mat` when available
-	- otherwise falls back to code defaults (`MNIST_digits/raw` and `KMNIST_japanese`) and stores them
-	- no runtime path prompt is required
+  - uses saved paths from `trained_models/folder_paths_cache.mat` when available
+  - otherwise falls back to code defaults (`MNIST_digits/raw` and `KMNIST_japanese`) and stores them
+  - no runtime path prompt is required
 
 ### 2) Run only the manifold OOD filter
 
@@ -93,9 +93,9 @@ Manifold-distance OOD detector trained on MNIST training data (`MNIST_digits/raw
 
 - Accepts folder input (IDX test set) or numeric input (`28x28`, `Nx784`, `28x28xN`, `28x28x1xN`)
 - Produces per-sample:
-	- predicted nearest digit manifold (`BestDigit`)
-	- confidence score (`Confidence`)
-	- accepted/rejected mask (`Accepted`, `IsOOD`)
+  - predicted nearest digit manifold (`BestDigit`)
+  - confidence score (`Confidence`)
+  - accepted/rejected mask (`Accepted`, `IsOOD`)
 - Uses vigilance threshold in `[0, 1]` where higher values are stricter
 - Caches trained manifold model in `trained_models/md_filter_cache.mat`
 
@@ -166,8 +166,8 @@ Notes:
 - `trainFolder` and `testFolder` are optional.
 - If omitted, saved/default paths from `getSetFolderPaths` are used.
 - Console output always reports:
-	- `loading training data from: ...`
-	- `Running inference test on: ...`
+  - `loading training data from: ...`
+  - `Running inference test on: ...`
 
 ### `visualize_examples.m`
 
