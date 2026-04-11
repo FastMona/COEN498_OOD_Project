@@ -55,6 +55,7 @@ function resolvedPath = resolveAndStorePath(projectRoot, varargin)
 
 	store = loadStore(projectRoot);
 
+	% If caller explicitly provided a path, use it directly with no prompt.
 	if ~isempty(strtrim(providedPath))
 		resolvedPath = makeAbsolutePath(providedPath, projectRoot);
 		store.(key) = resolvedPath;
@@ -62,15 +63,31 @@ function resolvedPath = resolveAndStorePath(projectRoot, varargin)
 		return;
 	end
 
+	% Determine candidate from stored value or default.
+	candidate = defaultPath;
 	if isfield(store, key)
 		storedPath = char(string(store.(key)));
 		if ~isempty(strtrim(storedPath)) && isfolder(storedPath)
-			resolvedPath = storedPath;
-			return;
+			candidate = storedPath;
 		end
 	end
 
-	resolvedPath = defaultPath;
+	% Prompt user to confirm or enter a different folder.
+	displayPath = toRelativePath(candidate, projectRoot);
+	switch key
+		case 'trainRoot'
+			fprintf('loading training data from: %s\n', displayPath);
+		case 'testRoot'
+			fprintf('Running inference test on: %s\n', displayPath);
+		otherwise
+			fprintf('%s: %s\n', key, displayPath);
+	end
+	userInput = strtrim(input('? ', 's'));
+	if ~isempty(userInput)
+		resolvedPath = makeAbsolutePath(userInput, projectRoot);
+	else
+		resolvedPath = candidate;
+	end
 
 	store.(key) = resolvedPath;
 	saveStore(projectRoot, store);
