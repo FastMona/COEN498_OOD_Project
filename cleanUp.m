@@ -5,6 +5,7 @@ function cleanUp()
 %     - CNN model cache
 %     - MLP model cache
 %     - Manifold model cache
+%     - Stored folder path cache
 %
 %   This function is useful for clearing cached models before retraining
 %   or when running a fresh training session.
@@ -22,7 +23,8 @@ function cleanUp()
 	cacheFiles = {
 		'cnn_reader_cache.mat', ...
 		'mlp_reader_cache.mat', ...
-		'md_filter_cache.mat'
+		'md_filter_cache.mat', ...
+		'folder_paths_cache.mat'
 	};
 	
 	fprintf('=== Cleaning up cache files ===\n');

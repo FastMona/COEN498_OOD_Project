@@ -9,36 +9,22 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 %   RESULTS = Folder_testor(trainFolder, testFolder, rejectThreshold) uses
 %   rejectThreshold as the MD_filter vigilance threshold in [0,1].
 
-	here = fileparts(mfilename('fullpath'));
-	
 	% Get training folder from user
 	if nargin < 1 || strlength(string(trainFolder)) == 0
-		trainPrompt = sprintf('Enter training folder path (default: %s): ', fullfile(here, 'MNIST_digits', 'raw'));
-		trainInput = input(trainPrompt, 's');
-		if strlength(string(trainInput)) == 0
-			trainRoot = fullfile(here, 'MNIST_digits', 'raw');
-		else
-			trainRoot = trainInput;
-		end
+		trainRoot = getSetFolderPaths('resolve', 'trainRoot');
 	else
-		trainRoot = trainFolder;
+		trainRoot = getSetFolderPaths('resolve', 'trainRoot', trainFolder);
 	end
 	
 	% Get testing folder from user
 	if nargin < 2 || strlength(string(testFolder)) == 0
-		testPrompt = sprintf('Enter testing/OOD folder path (default: %s): ', fullfile(here, 'KMNIST_japanese'));
-		testInput = input(testPrompt, 's');
-		if strlength(string(testInput)) == 0
-			oodFolder = fullfile(here, 'KMNIST_japanese');
-		else
-			oodFolder = testInput;
-		end
+		oodFolder = getSetFolderPaths('resolve', 'testRoot');
 	else
-		oodFolder = testFolder;
+		oodFolder = getSetFolderPaths('resolve', 'testRoot', testFolder);
 	end
 
 	if nargin < 3 || isempty(rejectThreshold)
-		rejectThreshold = 0.7;
+		rejectThreshold = 0.5;
 	end
 	if rejectThreshold < 0 || rejectThreshold > 1
 		error('Folder_testor:badThreshold', ...

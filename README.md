@@ -34,6 +34,7 @@ COEN498_OOD_Project/
 		cnn_reader_cache.mat
 		mlp_reader_cache.mat
 		md_filter_cache.mat
+		folder_paths_cache.mat
 ```
 
 The provided dataset folders in this repository already follow the naming expected by the scripts.
@@ -58,14 +59,16 @@ results = Folder_testor();
 
 Default behavior:
 
-- OOD source: `KMNIST_japanese`
-- OOD threshold (`rejectThreshold` / vigilance): `0.7`
-- Classifier training source: `MNIST_digits/raw`
+- OOD threshold (`rejectThreshold` / vigilance): `0.5`
+- Training/test folder roots are resolved by `getSetFolderPaths.m`
+	- uses saved paths from `trained_models/folder_paths_cache.mat` when available
+	- otherwise falls back to code defaults (`MNIST_digits/raw` and `KMNIST_japanese`) and stores them
+	- no runtime path prompt is required
 
 ### 2) Run only the manifold OOD filter
 
 ```matlab
-md = MD_filter('KMNIST_japanese', 0.7, false, true);
+md = MD_filter('KMNIST_japanese', 0.5, false, true);
 ```
 
 ### 3) Train/evaluate individual classifiers
@@ -79,7 +82,7 @@ mlp = MLP_reader('MNIST_digits/raw');
 
 ```matlab
 visualize_examples('MNIST_fashion');
-visualize_ood_examples('KMNIST_japanese', 0.7, 5);
+visualize_ood_examples('KMNIST_japanese', 0.5, 5);
 ```
 
 ## Script Overview
@@ -100,7 +103,7 @@ Key call forms:
 
 ```matlab
 MD_filter();                                   % train/load model only
-res = MD_filter(testInput);                    % score with default vigilance=0.7
+res = MD_filter(testInput);                    % score with default vigilance=0.5
 res = MD_filter(testInput, vigilance);         % custom threshold
 res = MD_filter(testInput, vig, true, false);  % force retrain, silent mode
 ```
@@ -154,9 +157,17 @@ Key call forms:
 
 ```matlab
 results = Folder_testor();
-results = Folder_testor('KMNIST_japanese');
-results = Folder_testor('KMNIST_japanese', 0.7);
+results = Folder_testor(trainFolder, testFolder);
+results = Folder_testor(trainFolder, testFolder, 0.5);
 ```
+
+Notes:
+
+- `trainFolder` and `testFolder` are optional.
+- If omitted, saved/default paths from `getSetFolderPaths` are used.
+- Console output always reports:
+	- `loading training data from: ...`
+	- `Running inference test on: ...`
 
 ### `visualize_examples.m`
 
@@ -190,12 +201,20 @@ Each major model is cached under `trained_models/`.
 
 - Repeated runs reuse cache when training data root (and MLP architecture) match.
 - Set `forceRetrain=true` in `CNN_reader`, `MLP_reader`, or `MD_filter` to retrain.
+- Folder roots are cached in `trained_models/folder_paths_cache.mat`.
 
 To clear all caches manually, delete:
 
 - `trained_models/cnn_reader_cache.mat`
 - `trained_models/mlp_reader_cache.mat`
 - `trained_models/md_filter_cache.mat`
+- `trained_models/folder_paths_cache.mat`
+
+Or run:
+
+```matlab
+cleanUp();
+```
 
 ## Troubleshooting
 
@@ -217,7 +236,7 @@ Install/enable MATLAB Deep Learning Toolbox.
 Lower the threshold, for example:
 
 ```matlab
-results = Folder_testor('KMNIST_japanese', 0.5);
+results = Folder_testor([], [], 0.4);
 ```
 
 ## Notes

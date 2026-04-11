@@ -8,7 +8,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 %   or a folder of IDX test patterns using the cached manifold model.
 %
 %   RESULTS = MD_filter(testInput, vigilance) changes the acceptance
-%   threshold. Default vigilance is 0.7.
+%   threshold. Default vigilance is 0.5.
 %
 %   RESULTS = MD_filter(testInput, vigilance, forceRetrain) forces manifold
 %   retraining when true.
@@ -25,7 +25,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 %     - 28x28x1xN image array
 
 	if nargin < 2 || isempty(vigilance)
-		vigilance = 0.7;
+		vigilance = 0.5;
 	end
 	if nargin < 3 || isempty(forceRetrain)
 		forceRetrain = false;
@@ -37,8 +37,10 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 		error('MD_filter:badThreshold', 'vigilance must be between 0 and 1.');
 	end
 
-	here = fileparts(mfilename('fullpath'));
-	trainRoot = fullfile(here, 'MNIST_digits', 'raw');
+	trainRoot = getSetFolderPaths('resolve', 'trainRoot');
+	if nargin >= 1 && (ischar(testInput) || (isstring(testInput) && isscalar(testInput)))
+		testInput = getSetFolderPaths('resolve', 'testRoot', char(string(testInput)));
+	end
 	model = loadOrTrainModel(trainRoot, forceRetrain, verboseOutput);
 
 	if nargin < 1 || isempty(testInput)
@@ -71,7 +73,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 
 	if verboseOutput
 		fprintf('\nMD_filter summary\n');
-		fprintf('Running inference test on: %s\n', inputSource);
+		fprintf('Running inference test on: %s\n', getSetFolderPaths(inputSource));
 		fprintf('Vigilance:  %.2f\n', vigilance);
 		fprintf('Samples:    %d\n', numSamples);
 		fprintf('Accepted:   %d (%.2f%%)\n', acceptedCount, 100 * acceptedCount / numSamples);

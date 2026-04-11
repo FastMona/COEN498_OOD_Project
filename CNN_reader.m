@@ -12,10 +12,10 @@ function results = CNN_reader(dataRoot, forceRetrain)
 %   is true. Otherwise, the function reuses the last saved trained CNN when
 %   its training-data root matches dataRoot.
 
-	if nargin < 1 || strlength(string(dataRoot)) == 0
-		here = fileparts(mfilename('fullpath'));
-		dataRoot = fullfile(here, 'MNIST_digits', 'raw');
+	if nargin < 1
+		dataRoot = '';
 	end
+	dataRoot = getSetFolderPaths('resolve', 'trainRoot', dataRoot);
 	if nargin < 2
 		forceRetrain = false;
 	end

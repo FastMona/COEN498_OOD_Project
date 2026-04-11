@@ -2,7 +2,7 @@ function fig = visualize_ood_examples(oodFolder, vigilance, maxPerGroup)
 % visualize_ood_examples Show accepted and rejected OOD samples side by side.
 %
 %   visualize_ood_examples() runs MD_filter on KMNIST_japanese with vigilance
-%   0.7 and displays a compact grid of accepted and rejected examples.
+%   0.5 and displays a compact grid of accepted and rejected examples.
 %
 %   visualize_ood_examples(oodFolder, vigilance, maxPerGroup) lets you
 %   choose the source folder, threshold, and maximum number of examples shown
@@ -13,7 +13,7 @@ function fig = visualize_ood_examples(oodFolder, vigilance, maxPerGroup)
 		oodFolder = fullfile(here, 'KMNIST_japanese');
 	end
 	if nargin < 2 || isempty(vigilance)
-		vigilance = 0.7;
+		vigilance = 0.5;
 	end
 	if nargin < 3 || isempty(maxPerGroup)
 		maxPerGroup = 5;

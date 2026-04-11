@@ -46,10 +46,10 @@ function results = MLP_reader(dataRoot, forceRetrain)
 		end
 	end
 
-	if nargin < 1 || strlength(string(dataRoot)) == 0
-		here = fileparts(mfilename('fullpath'));
-		dataRoot = fullfile(here, 'MNIST_digits', 'raw');
+	if nargin < 1
+		dataRoot = '';
 	end
+	dataRoot = getSetFolderPaths('resolve', 'trainRoot', dataRoot);
 	if nargin < 2
 		forceRetrain = false;
 	end
