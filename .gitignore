@@ -1,2 +1,9 @@
 # Ignore all CheXpert dataset folders
 CheXpert*/
+
+# Ignore processed image output folders
+chex_train/
+chex_pacemaker/
+
+# Ignore trained model weights (share manually)
+trained_models/
