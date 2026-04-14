@@ -1,36 +1,39 @@
-function results = Chex_tester(testFolder, chexRoot, rejectThreshold, forceRetrain)
-% Chex_tester  Top-level driver: train CheXpert models and score a test set.
+function results = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain)
+% Chex_tester  Top-level driver for the three-stage CheXpert OOD pipeline.
+%
+%   Calls MD_chex which runs:
+%     Stage 1 – pixel-space MD prefilter  ("Is this a chest X-ray?")
+%     Stage 2 – CNN_chex + MLP_chex regression scoring
+%     Stage 3 – latent-space MD filter    ("Does this X-ray look normal?")
 %
 %   RESULTS = Chex_tester()
-%     Trains (or loads) CNN_chex and MLP_chex on .\chex_train, then scores
-%     the same chex_train folder as a sanity check (all-normal baseline).
+%     Trains (or loads) all models on .\chex_train, then scores .\chex_train
+%     as a sanity check (all-normal baseline).
 %
 %   RESULTS = Chex_tester(testFolder)
-%     Scores the images in testFolder after ensuring models are trained.
-%     Pass a folder of CheXpert_pacemaker (or other OOD) images here.
+%     Scores images in testFolder (e.g. CheXpert_pacemaker or random OOD).
 %
 %   RESULTS = Chex_tester(testFolder, chexRoot)
 %     chexRoot : training image folder (default: .\chex_train).
 %
-%   RESULTS = Chex_tester(testFolder, chexRoot, rejectThreshold)
-%     rejectThreshold : combined score below this value is flagged as OOD.
-%                       Default: 0.5.
+%   RESULTS = Chex_tester(testFolder, chexRoot, vigilance)
+%     vigilance : MD acceptance threshold applied at Stage 1 and Stage 3.
+%                 Default 0.5.
 %
-%   RESULTS = Chex_tester(testFolder, chexRoot, rejectThreshold, forceRetrain)
-%     forceRetrain : true forces CNN and MLP retraining.
+%   RESULTS = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain)
+%     forceRetrain : true forces retraining of all models and manifolds.
 %
 %   Output struct fields:
-%     .MDResults       – full MD_chex output struct
-%     .TestFolder      – path that was scored
-%     .ChexRoot        – training folder used
-%     .RejectThreshold – threshold applied
-%     .NumSamples      – total images scored
-%     .NumAccepted     – images with CombinedScore >= rejectThreshold
-%     .NumRejected     – images with CombinedScore <  rejectThreshold
-%     .AcceptedPct     – accepted percentage
-%     .RejectedPct     – rejected percentage
+%     .MDResults            – full MD_chex output struct (all stage details)
+%     .TestFolder           – path that was scored
+%     .ChexRoot             – training folder used
+%     .Vigilance            – threshold applied
+%     .NumSamples           – total images scored
+%     .Stage1Accepted       – passed pixel-space MD (looks like an X-ray)
+%     .Stage1Rejected       – rejected at Stage 1
+%     .Stage3Accepted       – passed both Stage 1 and latent-space MD
+%     .Stage3Rejected       – passed Stage 1 but failed Stage 3 (abnormal)
 
-    % Resolve folders through getSetFolderPaths (prompts when not provided)
     if nargin < 1 || isempty(testFolder)
         testFolder = getSetFolderPaths('resolve', 'testRoot');
     else
@@ -41,19 +44,18 @@ function results = Chex_tester(testFolder, chexRoot, rejectThreshold, forceRetra
     else
         chexRoot = getSetFolderPaths('resolve', 'trainRoot', chexRoot);
     end
-    if nargin < 3 || isempty(rejectThreshold)
-        rejectThreshold = 0.9;
+    if nargin < 3 || isempty(vigilance)
+        vigilance = 0.5;
     end
     if nargin < 4
-        forceRetrain = false;
+        forceRetrain = promptForceRetrain();
     end
 
-    if rejectThreshold < 0 || rejectThreshold > 1
-        error('Chex_tester:badThreshold', 'rejectThreshold must be in [0, 1].');
+    if vigilance < 0 || vigilance > 1
+        error('Chex_tester:badVigilance', 'vigilance must be in [0, 1].');
     end
     if ~isfolder(testFolder)
-        error('Chex_tester:missingTestFolder', ...
-            'Test folder not found: %s', testFolder);
+        error('Chex_tester:missingTestFolder', 'Test folder not found: %s', testFolder);
     end
     if ~isfolder(chexRoot)
         error('Chex_tester:missingChexRoot', ...
@@ -63,61 +65,72 @@ function results = Chex_tester(testFolder, chexRoot, rejectThreshold, forceRetra
     fprintf('=== Chex_tester Configuration ===\n');
     fprintf('  Training data : %s\n', chexRoot);
     fprintf('  Test data     : %s\n', testFolder);
-    fprintf('  Threshold     : %.2f\n\n', rejectThreshold);
+    fprintf('  Vigilance     : %.2f\n\n', vigilance);
 
     % -----------------------------------------------------------------------
-    % Run MD_chex (trains models if needed, scores test folder)
+    % Run the full three-stage pipeline
     % -----------------------------------------------------------------------
-    fprintf('=== Running MD_chex ===\n');
-    mdResults = MD_chex(testFolder, chexRoot, forceRetrain);
+    fprintf('=== Running MD_chex (3-stage pipeline) ===\n');
+    mdResults = MD_chex(testFolder, chexRoot, vigilance, forceRetrain);
+
+    numSamples      = mdResults.NumSamples;
+    stage1Accepted  = mdResults.AcceptedCount;
+    stage1Rejected  = mdResults.RejectedCount;
+    stage3Accepted  = mdResults.LatentAcceptedCount;
+    stage3Rejected  = mdResults.LatentRejectedCount;
+
+    fprintf('\n=== Chex_tester Summary ===\n');
+    fprintf('  Total samples        : %d\n', numSamples);
+    fprintf('  Stage 1 accepted     : %d  (%.1f%%)  — looks like a chest X-ray\n', ...
+        stage1Accepted, 100 * stage1Accepted / numSamples);
+    fprintf('  Stage 1 rejected     : %d  (%.1f%%)  — not a chest X-ray\n', ...
+        stage1Rejected, 100 * stage1Rejected / numSamples);
+    fprintf('  Stage 3 accepted     : %d  (%.1f%%)  — normal X-ray features\n', ...
+        stage3Accepted, 100 * stage3Accepted / numSamples);
+    fprintf('  Stage 3 rejected     : %d  (%.1f%%)  — abnormal latent features\n\n', ...
+        stage3Rejected, 100 * stage3Rejected / numSamples);
 
     % -----------------------------------------------------------------------
-    % Apply threshold
+    % Plots
     % -----------------------------------------------------------------------
-    accepted = mdResults.CombinedScores >= rejectThreshold;
-    numSamples  = mdResults.NumSamples;
-    numAccepted = sum(accepted);
-    numRejected = numSamples - numAccepted;
+    figure('Name', 'Chex_tester: Pipeline Score Distributions', 'Color', 'w');
+    tiledlayout(2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
-    fprintf('\n=== Chex_tester Results ===\n');
-    fprintf('  Samples    : %d\n',          numSamples);
-    fprintf('  Threshold  : %.2f\n',         rejectThreshold);
-    fprintf('  Accepted   : %d  (%.1f%%)\n', numAccepted, 100 * numAccepted / numSamples);
-    fprintf('  Rejected   : %d  (%.1f%%)\n', numRejected, 100 * numRejected / numSamples);
-    fprintf('  CNN  score : mean=%.4f  std=%.4f\n', ...
-        mean(mdResults.CNNScores), std(mdResults.CNNScores));
-    fprintf('  MLP  score : mean=%.4f  std=%.4f\n', ...
-        mean(mdResults.MLPScores), std(mdResults.MLPScores));
-    fprintf('  Combined   : mean=%.4f  std=%.4f\n\n', ...
-        mean(mdResults.CombinedScores), std(mdResults.CombinedScores));
-
-    % -----------------------------------------------------------------------
-    % Score distribution plot
-    % -----------------------------------------------------------------------
-    figure('Name', 'CheXpert Anomaly Score Distribution', 'Color', 'w');
-
-    tiledlayout(1, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
-
+    % Stage 1: pixel MD confidence
     nexttile;
-    histogram(mdResults.CNNScores, 40, 'FaceColor', [0.2 0.5 0.8]);
-    xline(rejectThreshold, 'r--', 'LineWidth', 1.5);
-    xlabel('Score');  ylabel('Count');
-    title(sprintf('CNN  (mean=%.3f)', mdResults.MeanCNN));
+    histogram(mdResults.MDScores, 40, 'FaceColor', [0.4 0.4 0.8]);
+    xline(vigilance, 'r--', 'LineWidth', 1.5);
+    xlabel('Confidence');  ylabel('Count');
+    title(sprintf('Stage 1: pixel MD  (accepted=%d)', stage1Accepted));
 
+    % Stage 2: NN regression scores (accepted only)
+    accepted1 = mdResults.Accepted;
     nexttile;
-    histogram(mdResults.MLPScores, 40, 'FaceColor', [0.2 0.7 0.4]);
-    xline(rejectThreshold, 'r--', 'LineWidth', 1.5);
-    xlabel('Score');
-    title(sprintf('MLP  (mean=%.3f)', mdResults.MeanMLP));
+    hold on;
+    histogram(mdResults.CNNScores(accepted1),      30, 'FaceColor', [0.2 0.5 0.8], 'FaceAlpha', 0.6);
+    histogram(mdResults.MLPScores(accepted1),      30, 'FaceColor', [0.2 0.7 0.4], 'FaceAlpha', 0.6);
+    histogram(mdResults.CombinedScores(accepted1), 30, 'FaceColor', [0.8 0.4 0.2], 'FaceAlpha', 0.6);
+    hold off;
+    legend('CNN', 'MLP', 'Combined', 'Location', 'northwest');
+    xlabel('Regression score');  ylabel('Count');
+    title('Stage 2: NN scores  (normal target = 1.0)');
 
+    % Stage 3: CNN latent MD confidence
     nexttile;
-    histogram(mdResults.CombinedScores, 40, 'FaceColor', [0.8 0.4 0.2]);
-    xline(rejectThreshold, 'r--', 'LineWidth', 1.5);
-    xlabel('Score');
-    title(sprintf('Combined  (mean=%.3f)', mdResults.MeanCombined));
+    histogram(mdResults.CNNLatentScores(accepted1), 30, 'FaceColor', [0.2 0.5 0.8]);
+    xline(vigilance, 'r--', 'LineWidth', 1.5);
+    xlabel('Confidence');  ylabel('Count');
+    title(sprintf('Stage 3: CNN latent MD  (accepted=%d)', stage3Accepted));
 
-    sgtitle(sprintf('Anomaly scores  |  accepted=%d  rejected=%d  threshold=%.2f', ...
-        numAccepted, numRejected, rejectThreshold), 'FontWeight', 'bold');
+    % Stage 3: MLP latent MD confidence
+    nexttile;
+    histogram(mdResults.MLPLatentScores(accepted1), 30, 'FaceColor', [0.2 0.7 0.4]);
+    xline(vigilance, 'r--', 'LineWidth', 1.5);
+    xlabel('Confidence');  ylabel('Count');
+    title(sprintf('Stage 3: MLP latent MD'));
+
+    sgtitle(sprintf('Vigilance=%.2f  |  S1 accepted=%d  S3 accepted=%d  (of %d)', ...
+        vigilance, stage1Accepted, stage3Accepted, numSamples), 'FontWeight', 'bold');
 
     % -----------------------------------------------------------------------
     % Output struct
@@ -126,10 +139,41 @@ function results = Chex_tester(testFolder, chexRoot, rejectThreshold, forceRetra
     results.MDResults       = mdResults;
     results.TestFolder      = testFolder;
     results.ChexRoot        = chexRoot;
-    results.RejectThreshold = rejectThreshold;
+    results.Vigilance       = vigilance;
     results.NumSamples      = numSamples;
-    results.NumAccepted     = numAccepted;
-    results.NumRejected     = numRejected;
-    results.AcceptedPct     = 100 * numAccepted / numSamples;
-    results.RejectedPct     = 100 * numRejected / numSamples;
+    results.Stage1Accepted  = stage1Accepted;
+    results.Stage1Rejected  = stage1Rejected;
+    results.Stage3Accepted  = stage3Accepted;
+    results.Stage3Rejected  = stage3Rejected;
+end
+
+% ==========================================================================
+
+function forceRetrain = promptForceRetrain()
+% If any trained_models cache exists, ask the user whether to reuse it.
+    here     = fileparts(mfilename('fullpath'));
+    cacheDir = fullfile(here, 'trained_models');
+    caches   = { 'cnn_chex_cache.mat', 'mlp_chex_cache.mat', ...
+                 'md_chex_cache.mat',  'md_chex_latent_cache.mat' };
+
+    anyFound = false;
+    for i = 1:numel(caches)
+        if isfile(fullfile(cacheDir, caches{i}))
+            anyFound = true;
+            break;
+        end
+    end
+
+    if ~anyFound
+        % Nothing cached yet — training is unavoidable, no need to ask.
+        forceRetrain = false;
+        return;
+    end
+
+    fprintf('\nCached models found in %s\n', cacheDir);
+    reply = input('  Use cached models? [Y/n]: ', 's');
+    if isempty(reply)
+        reply = 'y';
+    end
+    forceRetrain = strcmpi(reply, 'n');
 end
