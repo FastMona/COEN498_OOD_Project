@@ -167,6 +167,13 @@ function cacheFile = getCacheFile()
     cacheFile = fullfile(cacheDir, 'cnn_chex_cache.mat');
 end
 
+function arch = archSignature()
+% Single source of truth for the CNN architecture string.
+% Update this string whenever the layer layout changes so the cache is
+% automatically invalidated and retraining is triggered.
+    arch = 'conv16-conv32-conv64-conv128-fc256';
+end
+
 function [net, loadedFromCache] = tryLoadCache(cacheFile, chexRoot, forceRetrain)
     net = [];
     loadedFromCache = false;
@@ -180,12 +187,17 @@ function [net, loadedFromCache] = tryLoadCache(cacheFile, chexRoot, forceRetrain
     if ~isfield(data.cacheMeta, 'chexRoot') || ~strcmp(data.cacheMeta.chexRoot, chexRoot)
         return;
     end
+    if ~isfield(data.cacheMeta, 'arch') || ~strcmp(data.cacheMeta.arch, archSignature())
+        fprintf('CNN_chex: architecture changed (%s) — discarding cached model.\n', archSignature());
+        return;
+    end
     net = data.net;
     loadedFromCache = true;
 end
 
 function saveCache(cacheFile, net, chexRoot)
     cacheMeta.chexRoot = chexRoot;
+    cacheMeta.arch     = archSignature();
     cacheMeta.savedAt  = char(datetime('now'));
     save(cacheFile, 'net', 'cacheMeta', '-v7.3');
 end

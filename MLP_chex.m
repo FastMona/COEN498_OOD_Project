@@ -10,7 +10,7 @@ function results = MLP_chex(chexRoot, forceRetrain)
 %
 %   Network:  imageInputLayer([320 390 1])
 %             flattenLayer  (-> 124800 features)
-%             FC(512) -> ReLU -> FC(256) -> ReLU -> FC(128) -> ReLU
+%             FC(1024) -> ReLU -> FC(512) -> ReLU -> FC(256) -> ReLU -> FC(128) -> ReLU
 %             FC(1) -> regressionLayer
 %
 %   All training labels are 1.0 (normal).  At inference the raw output is
@@ -81,20 +81,23 @@ function results = MLP_chex(chexRoot, forceRetrain)
         imageInputLayer([320 390 1], 'Name', 'input', 'Normalization', 'none')
         flattenLayer('Name', 'flatten')          % 124800
 
-        fullyConnectedLayer(512, 'Name', 'fc1')
+        fullyConnectedLayer(1024, 'Name', 'fc1')
         reluLayer('Name', 'relu1')
 
-        fullyConnectedLayer(256, 'Name', 'fc2')
+        fullyConnectedLayer(512, 'Name', 'fc2')
         reluLayer('Name', 'relu2')
 
-        fullyConnectedLayer(128, 'Name', 'fc3')
+        fullyConnectedLayer(256, 'Name', 'fc3')
         reluLayer('Name', 'relu3')
 
-        fullyConnectedLayer(1, 'Name', 'fc4')
+        fullyConnectedLayer(128, 'Name', 'fc4')
+        reluLayer('Name', 'relu4')
+
+        fullyConnectedLayer(1, 'Name', 'fc5')
         regressionLayer('Name', 'output')
     ];
 
-    fprintf('MLP_chex: architecture  %d -> [512-256-128] -> 1\n', numFeatures);
+    fprintf('MLP_chex: architecture  %d -> [1024-512-256-128] -> 1\n', numFeatures);
 
     options = trainingOptions('adam', ...
         'InitialLearnRate', 1e-4, ...
@@ -154,6 +157,13 @@ function cacheFile = getCacheFile()
     cacheFile = fullfile(cacheDir, 'mlp_chex_cache.mat');
 end
 
+function arch = archSignature()
+% Single source of truth for the architecture string.
+% Changing the network layout must be reflected here so the cache is
+% automatically invalidated and retraining is triggered.
+    arch = '1024-512-256-128';
+end
+
 function [net, loadedFromCache] = tryLoadCache(cacheFile, chexRoot, forceRetrain)
     net = [];
     loadedFromCache = false;
@@ -167,12 +177,17 @@ function [net, loadedFromCache] = tryLoadCache(cacheFile, chexRoot, forceRetrain
     if ~isfield(data.cacheMeta, 'chexRoot') || ~strcmp(data.cacheMeta.chexRoot, chexRoot)
         return;
     end
+    if ~isfield(data.cacheMeta, 'arch') || ~strcmp(data.cacheMeta.arch, archSignature())
+        fprintf('MLP_chex: architecture changed (%s) — discarding cached model.\n', archSignature());
+        return;
+    end
     net = data.net;
     loadedFromCache = true;
 end
 
 function saveCache(cacheFile, net, chexRoot)
     cacheMeta.chexRoot = chexRoot;
+    cacheMeta.arch     = archSignature();
     cacheMeta.savedAt  = char(datetime('now'));
     save(cacheFile, 'net', 'cacheMeta', '-v7.3');
 end

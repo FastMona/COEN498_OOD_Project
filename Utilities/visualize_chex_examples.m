@@ -10,9 +10,16 @@ function fig = visualize_chex_examples(testFolder, vigilance, maxPerGroup, stage
 %     maxPerGroup : max images shown per row (default: 5, capped at 5)
 %     stage       : 1 = Stage-1 pixel MD, 3 = Stage-3 latent MD (default: 1)
 
+	here        = fileparts(mfilename('fullpath'));
+	projectRoot = fileparts(here);
+
 	if nargin < 1 || strlength(string(testFolder)) == 0
-		here = fileparts(mfilename('fullpath'));
-		testFolder = fullfile(fileparts(here), 'chex_pacemaker');
+		% Silently read the last-used testRoot from the getSetFolderPaths cache
+		% so the visualization stays in sync with the most recent Chex_tester run.
+		testFolder = readStoredTestRoot(projectRoot);
+	else
+		% Resolve any relative path to absolute so MD_chex can always find it.
+		testFolder = resolveToAbsolute(char(string(testFolder)), projectRoot);
 	end
 	if nargin < 2 || isempty(vigilance)
 		vigilance = 0.5;
@@ -67,6 +74,33 @@ function fig = visualize_chex_examples(testFolder, vigilance, maxPerGroup, stage
 		'String', sprintf('Accepted: %d    Rejected: %d    Source: %s', ...
 			numel(acceptedIdx), numel(rejectedIdx), testFolder), ...
 		'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
+end
+
+function folder = readStoredTestRoot(projectRoot)
+% Silently return the cached testRoot, falling back to chex_pacemaker.
+	cacheFile = fullfile(projectRoot, 'trained_models', 'folder_paths_cache.mat');
+	if isfile(cacheFile)
+		data = load(cacheFile, 'folderPaths');
+		if isfield(data, 'folderPaths') && isfield(data.folderPaths, 'testRoot')
+			stored = char(string(data.folderPaths.testRoot));
+			if ~isempty(stored) && isfolder(stored)
+				folder = stored;
+				return;
+			end
+		end
+	end
+	folder = fullfile(projectRoot, 'chex_pacemaker');
+end
+
+function absPath = resolveToAbsolute(pathInput, projectRoot)
+% Convert a relative path to absolute using projectRoot as the base.
+	isAbs = (numel(pathInput) >= 2 && pathInput(2) == ':') || ...
+	        startsWith(pathInput, '\\');
+	if isAbs
+		absPath = pathInput;
+	else
+		absPath = fullfile(projectRoot, pathInput);
+	end
 end
 
 function showExample(results, sampleIdx, isAccepted, stage)
