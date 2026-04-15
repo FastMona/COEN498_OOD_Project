@@ -1,38 +1,26 @@
 function results = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain, vigilance3)
-% Chex_tester  Top-level driver for the three-stage CheXpert OOD pipeline.
+% Chex_tester  Top-level driver for the CheXpert parallel OOD pipeline.
 %
 %   Calls MD_chex which runs:
-%     Stage 1 – pixel-space MD prefilter  ("Is this a chest X-ray?")
-%     Stage 2 – CNN_chex + MLP_chex regression scoring
-%     Stage 3 – latent-space MD filter    ("Does this X-ray look normal?")
+%     Stage 1 (shared) – pixel-space MD prefilter
+%     CNN track        – CNN regression + CNN latent-space MD (independent)
+%     MLP track        – MLP regression + MLP latent-space MD (independent)
+%
+%   The two network tracks produce separate, non-combined verdicts.
 %
 %   RESULTS = Chex_tester()
-%     Trains (or loads) all models on .\chex_train, then scores .\chex_train
-%     as a sanity check (all-normal baseline).
-%
 %   RESULTS = Chex_tester(testFolder)
-%     Scores images in testFolder (e.g. CheXpert_pacemaker or random OOD).
-%
 %   RESULTS = Chex_tester(testFolder, chexRoot)
-%     chexRoot : training image folder (default: .\chex_train).
-%
 %   RESULTS = Chex_tester(testFolder, chexRoot, vigilance)
-%     vigilance : MD acceptance threshold applied at Stage 1 and Stage 3.
-%                 Default 0.5.
-%
 %   RESULTS = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain)
-%     forceRetrain : true forces retraining of all models and manifolds.
+%   RESULTS = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain, vigilance3)
 %
 %   Output struct fields:
-%     .MDResults            – full MD_chex output struct (all stage details)
-%     .TestFolder           – path that was scored
-%     .ChexRoot             – training folder used
-%     .Vigilance            – threshold applied
-%     .NumSamples           – total images scored
-%     .Stage1Accepted       – passed pixel-space MD (looks like an X-ray)
-%     .Stage1Rejected       – rejected at Stage 1
-%     .Stage3Accepted       – passed both Stage 1 and latent-space MD
-%     .Stage3Rejected       – passed Stage 1 but failed Stage 3 (abnormal)
+%     .MDResults        full MD_chex output struct
+%     .TestFolder       .ChexRoot   .Vigilance   .Vigilance3   .NumSamples
+%     .Stage1Accepted   .Stage1Rejected
+%     .CNNAccepted      .CNNRejected
+%     .MLPAccepted      .MLPRejected
 
     if nargin < 1 || isempty(testFolder)
         testFolder = getSetFolderPaths('resolve', 'testRoot');
@@ -51,7 +39,7 @@ function results = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain, vi
         forceRetrain = promptForceRetrain();
     end
     if nargin < 5 || isempty(vigilance3)
-        vigilance3 = 0.7;
+        vigilance3 = 0.5;
     end
 
     if vigilance < 0 || vigilance > 1
@@ -72,16 +60,18 @@ function results = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain, vi
     fprintf('  Vigilance S3  : %.2f\n\n', vigilance3);
 
     % -----------------------------------------------------------------------
-    % Run the full three-stage pipeline
+    % Run the pipeline
     % -----------------------------------------------------------------------
-    fprintf('=== Running MD_chex (3-stage pipeline) ===\n');
+    fprintf('=== Running MD_chex (parallel pipeline) ===\n');
     mdResults = MD_chex(testFolder, chexRoot, vigilance, forceRetrain, vigilance3);
 
-    numSamples      = mdResults.NumSamples;
-    stage1Accepted  = mdResults.AcceptedCount;
-    stage1Rejected  = mdResults.RejectedCount;
-    stage3Accepted  = mdResults.LatentAcceptedCount;
-    stage3Rejected  = mdResults.LatentRejectedCount;
+    numSamples     = mdResults.NumSamples;
+    stage1Accepted = mdResults.Stage1.AcceptedCount;
+    stage1Rejected = mdResults.Stage1.RejectedCount;
+    cnnAccepted    = mdResults.CNN.AcceptedCount;
+    cnnRejected    = mdResults.CNN.RejectedCount;
+    mlpAccepted    = mdResults.MLP.AcceptedCount;
+    mlpRejected    = mdResults.MLP.RejectedCount;
 
     fprintf('\n=== Chex_tester Summary ===\n');
     fprintf('  Total samples        : %d\n', numSamples);
@@ -89,149 +79,203 @@ function results = Chex_tester(testFolder, chexRoot, vigilance, forceRetrain, vi
         stage1Accepted, 100 * stage1Accepted / numSamples);
     fprintf('  Stage 1 rejected     : %d  (%.1f%%)  — not a chest X-ray\n', ...
         stage1Rejected, 100 * stage1Rejected / numSamples);
-    fprintf('  Stage 3 accepted     : %d  (%.1f%%)  — normal X-ray features\n', ...
-        stage3Accepted, 100 * stage3Accepted / numSamples);
-    fprintf('  Stage 3 rejected     : %d  (%.1f%%)  — abnormal latent features\n\n', ...
-        stage3Rejected, 100 * stage3Rejected / numSamples);
+    fprintf('  CNN track accepted   : %d  (%.1f%%)  — normal by CNN latent MD\n', ...
+        cnnAccepted, 100 * cnnAccepted / numSamples);
+    fprintf('  CNN track rejected   : %d  (%.1f%%)  — abnormal CNN latent features\n', ...
+        cnnRejected, 100 * cnnRejected / numSamples);
+    fprintf('  MLP track accepted   : %d  (%.1f%%)  — normal by MLP latent MD\n', ...
+        mlpAccepted, 100 * mlpAccepted / numSamples);
+    fprintf('  MLP track rejected   : %d  (%.1f%%)  — abnormal MLP latent features\n\n', ...
+        mlpRejected, 100 * mlpRejected / numSamples);
 
     % -----------------------------------------------------------------------
-    % Plots
+    % Figure 1: Score distributions — 2x2 grid (CNN track top, MLP track bottom)
     % -----------------------------------------------------------------------
-    figure('Name', 'Chex_tester: Pipeline Score Distributions', 'Color', 'w');
+    s1Mask = mdResults.Stage1.Accepted;
+
+    figure('Name', 'Chex_tester: Score Distributions', 'Color', 'w');
     tiledlayout(2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 
-    % Stage 1: pixel MD confidence
+    % CNN Stage 2 regression
     nexttile;
-    histogram(mdResults.MDScores, 40, 'FaceColor', [0.4 0.4 0.8]);
-    xline(vigilance, 'r--', 'LineWidth', 1.5);
-    xlabel('Confidence');  ylabel('Count');
-    title(sprintf('Stage 1: pixel MD  (accepted=%d)', stage1Accepted));
-
-    % Stage 2: NN regression scores (accepted only)
-    accepted1 = mdResults.Accepted;
-    nexttile;
-    hold on;
-    histogram(mdResults.CNNScores(accepted1),      30, 'FaceColor', [0.2 0.5 0.8], 'FaceAlpha', 0.6);
-    histogram(mdResults.MLPScores(accepted1),      30, 'FaceColor', [0.2 0.7 0.4], 'FaceAlpha', 0.6);
-    histogram(mdResults.CombinedScores(accepted1), 30, 'FaceColor', [0.8 0.4 0.2], 'FaceAlpha', 0.6);
-    hold off;
-    legend('CNN', 'MLP', 'Combined', 'Location', 'northwest');
+    histogram(mdResults.CNN.Stage2Scores(s1Mask), 30, 'FaceColor', [0.2 0.5 0.8]);
     xlabel('Regression score');  ylabel('Count');
-    title('Stage 2: NN scores  (normal target = 1.0)');
+    title('CNN track — Stage 2 regression  (normal = 1.0)');
 
-    % Stage 3: CNN latent MD confidence
+    % CNN latent MD
     nexttile;
-    histogram(mdResults.CNNLatentScores(accepted1), 30, 'FaceColor', [0.2 0.5 0.8]);
+    histogram(mdResults.CNN.LatentScores(s1Mask), 30, 'FaceColor', [0.2 0.5 0.8]);
     xline(vigilance3, 'r--', 'LineWidth', 1.5);
-    xlabel('Confidence');  ylabel('Count');
-    title(sprintf('Stage 3: CNN latent MD  (accepted=%d)', stage3Accepted));
+    xlabel('Latent MD confidence');  ylabel('Count');
+    title(sprintf('CNN track — Stage 3 latent MD  (accepted=%d)', cnnAccepted));
 
-    % Stage 3: MLP latent MD confidence
+    % MLP Stage 2 regression
     nexttile;
-    histogram(mdResults.MLPLatentScores(accepted1), 30, 'FaceColor', [0.2 0.7 0.4]);
-    xline(vigilance3, 'r--', 'LineWidth', 1.5);
-    xlabel('Confidence');  ylabel('Count');
-    title('Stage 3: MLP latent MD');
+    histogram(mdResults.MLP.Stage2Scores(s1Mask), 30, 'FaceColor', [0.2 0.7 0.4]);
+    xlabel('Regression score');  ylabel('Count');
+    title('MLP track — Stage 2 regression  (normal = 1.0)');
 
-    sgtitle(sprintf('S1 vigilance=%.2f  S3 vigilance=%.2f  |  S1 accepted=%d  S3 accepted=%d  (of %d)', ...
-        vigilance, vigilance3, stage1Accepted, stage3Accepted, numSamples), 'FontWeight', 'bold');
+    % MLP latent MD
+    nexttile;
+    histogram(mdResults.MLP.LatentScores(s1Mask), 30, 'FaceColor', [0.2 0.7 0.4]);
+    xline(vigilance3, 'r--', 'LineWidth', 1.5);
+    xlabel('Latent MD confidence');  ylabel('Count');
+    title(sprintf('MLP track — Stage 3 latent MD  (accepted=%d)', mlpAccepted));
+
+    sgtitle(sprintf( ...
+        'S1 vig=%.2f  S3 vig=%.2f  |  S1 accepted=%d  |  CNN accepted=%d  MLP accepted=%d  (of %d)', ...
+        vigilance, vigilance3, stage1Accepted, cnnAccepted, mlpAccepted, numSamples), ...
+        'FontWeight', 'bold');
 
     % -----------------------------------------------------------------------
-    % Sample gallery: 2 rows x 5 cols  (accepted top, rejected bottom)
+    % Figure 2: Stage-1 prefilter gallery
     % -----------------------------------------------------------------------
-    showGallery(mdResults, vigilance, testFolder);
+    showStage1Gallery(mdResults, vigilance, testFolder);
+
+    % -----------------------------------------------------------------------
+    % Figure 3: CNN track gallery
+    % -----------------------------------------------------------------------
+    showTrackGallery(mdResults, vigilance3, testFolder, 'CNN');
+
+    % -----------------------------------------------------------------------
+    % Figure 4: MLP track gallery
+    % -----------------------------------------------------------------------
+    showTrackGallery(mdResults, vigilance3, testFolder, 'MLP');
 
     % -----------------------------------------------------------------------
     % Output struct
     % -----------------------------------------------------------------------
     results = struct();
-    results.MDResults       = mdResults;
-    results.TestFolder      = testFolder;
-    results.ChexRoot        = chexRoot;
-    results.Vigilance       = vigilance;
-    results.NumSamples      = numSamples;
-    results.Stage1Accepted  = stage1Accepted;
-    results.Stage1Rejected  = stage1Rejected;
-    results.Stage3Accepted  = stage3Accepted;
-    results.Stage3Rejected  = stage3Rejected;
+    results.MDResults      = mdResults;
+    results.TestFolder     = testFolder;
+    results.ChexRoot       = chexRoot;
+    results.Vigilance      = vigilance;
+    results.Vigilance3     = vigilance3;
+    results.NumSamples     = numSamples;
+    results.Stage1Accepted = stage1Accepted;
+    results.Stage1Rejected = stage1Rejected;
+    results.CNNAccepted    = cnnAccepted;
+    results.CNNRejected    = cnnRejected;
+    results.MLPAccepted    = mlpAccepted;
+    results.MLPRejected    = mlpRejected;
 end
 
 % ==========================================================================
 
-function showGallery(mdResults, vigilance, testFolder)
-% showGallery  Display a 2×5 grid of representative accepted / rejected images.
-%
-%   Top row    – Stage-3 accepted (passed both Stage 1 and Stage 3).
-%   Bottom row – Stage-3 rejected (passed Stage 1, failed Stage 3).
-%                Falls back to Stage-1 rejects when too few Stage-3 rejects exist.
-%
-%   Up to 5 images are shown per row; empty tiles are blanked.
+function showStage1Gallery(mdResults, vigilance, testFolder)
+% Figure 2: 2x5 grid — Stage-1 prefilter accepted (top) / rejected (bottom).
 
     NUM_COLS = 5;
 
-    acceptedIdx = find(mdResults.LatentAccepted);
-
-    % Prefer Stage-3 rejects; pad with Stage-1 rejects if needed.
-    stage3RejIdx = find(mdResults.Accepted & ~mdResults.LatentAccepted);
-    stage1RejIdx = find(~mdResults.Accepted);
-    rejectedIdx  = [stage3RejIdx; stage1RejIdx];
+    acceptedIdx = find(mdResults.Stage1.Accepted);
+    rejectedIdx = find(mdResults.Stage1.Rejected);
 
     numAcc = min(NUM_COLS, numel(acceptedIdx));
     numRej = min(NUM_COLS, numel(rejectedIdx));
 
     [~, testName] = fileparts(testFolder);
 
-    figure('Name', 'Chex_tester: Sample Gallery', 'Color', 'w');
+    fig = figure('Name', 'Chex_tester: Stage 1 Prefilter Gallery', 'Color', 'w');
     t   = tiledlayout(2, NUM_COLS, 'TileSpacing', 'compact', 'Padding', 'compact');
-    title(t, sprintf('Sample Gallery  |  vigilance=%.2f  |  %s', vigilance, testName), ...
+    title(t, sprintf('Stage 1 – Pixel-space MD  |  vigilance=%.2f  |  %s', vigilance, testName), ...
           'FontWeight', 'bold');
 
-    % --- Top row: accepted ---
     for i = 1:NUM_COLS
         nexttile(i);
         if i <= numAcc
-            idx   = acceptedIdx(i);
-            score = mdResults.LatentScores(idx);
-            showGalleryTile(mdResults.TestFiles{idx}, 'ACCEPT', score);
+            idx = acceptedIdx(i);
+            showStage1Tile(mdResults.TestFiles{idx}, 'ACCEPT', ...
+                mdResults.Stage1.MDScores(idx), mdResults.Stage1.NormalizedDist(idx));
         else
             axis off;
         end
     end
 
-    % --- Bottom row: rejected ---
     for i = 1:NUM_COLS
         nexttile(NUM_COLS + i);
         if i <= numRej
             idx = rejectedIdx(i);
-            if ~mdResults.Accepted(idx)
-                label = 'S1-REJ';
-                score = mdResults.MDScores(idx);
-            else
-                label = 'S3-REJ';
-                score = mdResults.LatentScores(idx);
-            end
-            showGalleryTile(mdResults.TestFiles{idx}, label, score);
+            showStage1Tile(mdResults.TestFiles{idx}, 'REJECT', ...
+                mdResults.Stage1.MDScores(idx), mdResults.Stage1.NormalizedDist(idx));
         else
             axis off;
         end
     end
+
+    annotation(fig, 'textbox', [0 0.95 1 0.04], ...
+        'String', sprintf('Accepted: %d    Rejected: %d    Source: %s', ...
+            numel(acceptedIdx), numel(rejectedIdx), testFolder), ...
+        'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
 end
 
-function showGalleryTile(filepath, label, score)
-% Load one image, display it, and add a concise title.
+function showStage1Tile(filepath, label, mdScore, normDist)
     img = imread(filepath);
-    if size(img, 3) == 3
-        img = rgb2gray(img);
+    if size(img, 3) == 3,  img = rgb2gray(img);  end
+    imshow(img, []);  axis image off;
+    title({sprintf('%s  md=%.3f', label, mdScore), ...
+           sprintf('dist=%.3f', normDist)}, 'FontSize', 9);
+end
+
+% ==========================================================================
+
+function showTrackGallery(mdResults, vigilance3, testFolder, track)
+% Figures 3 & 4: 2x5 grid for one network track.
+%   Top row    – images accepted by S1 AND this track's latent filter.
+%   Bottom row – images that passed S1 but were rejected by this track.
+
+    NUM_COLS = 5;
+
+    trackData   = mdResults.(track);
+    acceptedIdx = find(trackData.Accepted);
+    rejectedIdx = find(mdResults.Stage1.Accepted & ~trackData.Accepted);
+
+    numAcc = min(NUM_COLS, numel(acceptedIdx));
+    numRej = min(NUM_COLS, numel(rejectedIdx));
+
+    [~, testName] = fileparts(testFolder);
+
+    fig = figure('Name', sprintf('Chex_tester: %s Track Gallery', track), 'Color', 'w');
+    t   = tiledlayout(2, NUM_COLS, 'TileSpacing', 'compact', 'Padding', 'compact');
+    title(t, sprintf('%s track – Stage 3 latent MD  |  vigilance=%.2f  |  %s', ...
+          track, vigilance3, testName), 'FontWeight', 'bold');
+
+    for i = 1:NUM_COLS
+        nexttile(i);
+        if i <= numAcc
+            showTrackTile(mdResults, acceptedIdx(i), true, track);
+        else
+            axis off;
+        end
     end
-    imshow(img, []);
-    axis image off;
-    title(sprintf('%s  %.3f', label, score), 'FontSize', 9);
+
+    for i = 1:NUM_COLS
+        nexttile(NUM_COLS + i);
+        if i <= numRej
+            showTrackTile(mdResults, rejectedIdx(i), false, track);
+        else
+            axis off;
+        end
+    end
+
+    annotation(fig, 'textbox', [0 0.95 1 0.04], ...
+        'String', sprintf('Accepted: %d    Rejected: %d    Source: %s', ...
+            numel(acceptedIdx), numel(rejectedIdx), testFolder), ...
+        'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontWeight', 'bold');
+end
+
+function showTrackTile(mdResults, idx, isAccepted, track)
+    img = imread(mdResults.TestFiles{idx});
+    if size(img, 3) == 3,  img = rgb2gray(img);  end
+    imshow(img, []);  axis image off;
+    status = 'ACCEPT';
+    if ~isAccepted,  status = 'REJECT';  end
+    title({sprintf('%s  s2=%.3f', status, mdResults.(track).Stage2Scores(idx)), ...
+           sprintf('latent=%.3f', mdResults.(track).LatentScores(idx))}, 'FontSize', 9);
 end
 
 % ==========================================================================
 
 function forceRetrain = promptForceRetrain()
-% If any trained_models cache exists, ask the user whether to reuse it.
     here     = fileparts(mfilename('fullpath'));
     cacheDir = fullfile(here, 'trained_models');
     caches   = { 'cnn_chex_cache.mat', 'mlp_chex_cache.mat', ...
@@ -246,15 +290,12 @@ function forceRetrain = promptForceRetrain()
     end
 
     if ~anyFound
-        % Nothing cached yet — training is unavoidable, no need to ask.
         forceRetrain = false;
         return;
     end
 
     fprintf('\nCached models found in %s\n', cacheDir);
     reply = input('  Use cached models? [Y/n]: ', 's');
-    if isempty(reply)
-        reply = 'y';
-    end
+    if isempty(reply),  reply = 'y';  end
     forceRetrain = strcmpi(reply, 'n');
 end

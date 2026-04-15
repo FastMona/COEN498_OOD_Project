@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git checkout:*)",
       "Bash(python3 -c ':*)",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(wc -l *.m Utilities/*.m)"
     ]
   }
 }
