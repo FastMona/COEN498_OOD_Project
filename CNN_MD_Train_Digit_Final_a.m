@@ -2,8 +2,8 @@ clear; clc; close all;
 
 %% USER SETTINGS
 
-dataFolder = 'D:\Microsoft\OneDrive\Desktop\COEN 6331\Project_Final\MNIST Digit_2';
-modelFolder = 'D:\Microsoft\OneDrive\Desktop\COEN 6331\Project_Final\Models';
+dataFolder = 'C:\Users\David\Documents_local\Repository_local\MATLAB\COEN498_OOD_Project\MNIST_digits';
+modelFolder = 'C:\Users\David\Documents_local\Repository_local\MATLAB\COEN498_OOD_Project\trained_models';
 
 trainImageFile = fullfile(dataFolder, 'train-images-idx3-ubyte');
 trainLabelFile = fullfile(dataFolder, 'train-labels-idx1-ubyte');
@@ -130,7 +130,7 @@ Sigma = Sigma / N;
 lambda = 1e-3;
 SigmaReg = Sigma + lambda * eye(featureDim);
 
-invSigma = inv(SigmaReg);
+invSigma = pinv(SigmaReg);
 
 % Compute training MD scores (minimum over classes)
 fprintf('Computing training Mahalanobis scores...\n');

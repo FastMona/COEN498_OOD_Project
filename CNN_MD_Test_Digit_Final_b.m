@@ -2,11 +2,11 @@ clear; clc; close all;
 
 %% USER SETTINGS
 
-testFolder  = 'D:\Microsoft\OneDrive\Desktop\COEN 6331\Project_Final\MNIST Digit_2';
-modelFolder = 'D:\Microsoft\OneDrive\Desktop\COEN 6331\Project_Final\Models';
+testFolder  = 'C:\Users\David\Documents_local\Repository_local\MATLAB\COEN498_OOD_Project\MNIST_digits';
+modelFolder = 'C:\Users\David\Documents_local\Repository_local\MATLAB\COEN498_OOD_Project\trained_models';
 
-testImageFile = fullfile(testFolder,  'test-images-idx3-ubyte');
-testLabelFile = fullfile(testFolder,  'test-labels-idx1-ubyte');
+testImageFile = fullfile(testFolder,  't10k-images-idx3-ubyte');
+testLabelFile = fullfile(testFolder,  't10k-labels-idx1-ubyte');
 modelFile     = fullfile(modelFolder, 'mnist_cnn_model_with_multilayer_md.mat');
 
 rng('shuffle');
