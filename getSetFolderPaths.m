@@ -96,7 +96,7 @@ end
 function defaultPath = getDefaultForKey(projectRoot, key)
 	switch key
 		case 'trainRoot'
-			defaultPath = fullfile(projectRoot, 'MNIST_digits', 'raw');
+			defaultPath = fullfile(projectRoot, 'MNIST_digits');
 		case 'testRoot'
 			defaultPath = fullfile(projectRoot, 'KMNIST_japanese');
 		otherwise
