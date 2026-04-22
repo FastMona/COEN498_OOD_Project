@@ -191,7 +191,9 @@ if isempty(acceptedIdx)
     fprintf('No accepted samples. All Japanese samples were rejected as OOD.\n');
 else
     numPerFigure = 25;
-    numAccepted = numel(acceptedIdx);
+    maxShow = 100;  % cap to avoid hundreds of figures when threshold is loose
+    numAccepted = min(numel(acceptedIdx), maxShow);
+    acceptedIdx = acceptedIdx(1:numAccepted);
     numFigures = ceil(numAccepted / numPerFigure);
 
     for figNum = 1:numFigures
