@@ -10,21 +10,26 @@ function cleanUp()
 %   This function is useful for clearing cached models before retraining
 %   or when running a fresh training session.
 
-	here = fileparts(mfilename('fullpath'));
-	cacheFolder = fullfile(here, 'trained_models');
-	
+	here        = fileparts(mfilename('fullpath'));   % .../Utilities/
+	projectRoot = fileparts(here);                    % .../COEN498_OOD_Project/
+	cacheFolder = fullfile(projectRoot, 'trained_models');
+
 	% Check if cache folder exists
 	if ~isfolder(cacheFolder)
-		fprintf('Cache folder not found: %s\n', getSetFolderPaths(cacheFolder));
+		fprintf('Cache folder not found: %s\n', cacheFolder);
 		return;
 	end
-	
-	% Define cache files to delete
+
+	% All known cache files (digits pipeline + CheXpert pipeline)
 	cacheFiles = {
 		'cnn_reader_cache.mat', ...
 		'mlp_reader_cache.mat', ...
 		'md_filter_cache.mat', ...
-		'folder_paths_cache.mat'
+		'folder_paths_cache.mat', ...
+		'cnn_chex_cache.mat', ...
+		'mlp_chex_cache.mat', ...
+		'md_chex_cache.mat', ...
+		'md_chex_latent_cache.mat'
 	};
 	
 	fprintf('=== Cleaning up cache files ===\n');
@@ -35,13 +40,13 @@ function cleanUp()
 		if isfile(cacheFile)
 			try
 				delete(cacheFile);
-				fprintf('Deleted: %s\n', getSetFolderPaths(cacheFile));
+				fprintf('Deleted: %s\n', cacheFiles{i});
 				deletedCount = deletedCount + 1;
 			catch ME
 				fprintf('Error deleting %s: %s\n', cacheFiles{i}, ME.message);
 			end
 		else
-			fprintf('Not found: %s\n', getSetFolderPaths(cacheFile));
+			fprintf('Not found (skipping): %s\n', cacheFiles{i});
 		end
 	end
 	

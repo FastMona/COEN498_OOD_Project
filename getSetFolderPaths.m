@@ -79,6 +79,10 @@ function resolvedPath = resolveAndStorePath(projectRoot, varargin)
 			fprintf('loading training data from: %s\n', displayPath);
 		case 'testRoot'
 			fprintf('Running inference test on: %s\n', displayPath);
+		case 'aurocNormalRoot'
+			fprintf('Normal (label=0) folder: %s\n', displayPath);
+		case 'aurocOodRoot'
+			fprintf('OOD (label=1) folder: %s\n', displayPath);
 		otherwise
 			fprintf('%s: %s\n', key, displayPath);
 	end
@@ -99,9 +103,13 @@ function defaultPath = getDefaultForKey(projectRoot, key)
 			defaultPath = fullfile(projectRoot, 'MNIST_digits', 'raw');
 		case 'testRoot'
 			defaultPath = fullfile(projectRoot, 'KMNIST_japanese');
+		case 'aurocNormalRoot'
+			defaultPath = fullfile(projectRoot, 'chex_test');
+		case 'aurocOodRoot'
+			defaultPath = fullfile(projectRoot, 'chex_squares75');
 		otherwise
 			error('getSetFolderPaths:unknownKey', ...
-				'Unknown folder key: %s. Supported keys: trainRoot, testRoot.', key);
+				'Unknown folder key: %s. Supported keys: trainRoot, testRoot, aurocNormalRoot, aurocOodRoot.', key);
 	end
 end
 
