@@ -1,5 +1,29 @@
 function accuracy = testMLP(csv_file, W, b)
 
+%% ================= ARCHITECTURE =================
+hiddenSizes = [512, 256, 128];
+inputSize   = 784;
+outputSize  = 10;
+
+%% ================= DEFAULTS =================
+if nargin < 1 || isempty(csv_file)
+    csv_file = 'mnist_test.csv';
+end
+
+%% ================= INITIALIZE W AND b IF NOT PROVIDED =================
+if nargin < 2 || isempty(W)
+    sizes = [inputSize, hiddenSizes, outputSize];
+    L_init = numel(sizes) - 1;
+    W = cell(L_init, 1);
+    b = cell(L_init, 1);
+    for l = 1:L_init
+        fanIn  = sizes(l);
+        W{l} = randn(sizes(l+1), fanIn) * sqrt(2 / fanIn);
+        b{l} = zeros(sizes(l+1), 1);
+    end
+    fprintf("W and b initialised with He init (untrained — expect ~10%% accuracy)\n");
+end
+
 %% ================= LOAD DATA =================
 data = readmatrix(csv_file);
 
