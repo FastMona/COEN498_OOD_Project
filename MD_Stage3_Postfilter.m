@@ -306,15 +306,25 @@ function scores = mdScores(F, mu, invSigma, numClasses)
 end
 
 function F = feats(net, X, layerName)
-	% Extract activations from one layer.
-	% Conv output (H×W×C×N): global average pooling → N×C.
-	% FC output  (1×1×D×N): squeeze+transpose     → N×D.
-	A = activations(net, X, layerName);
-	A = squeeze(mean(mean(double(A), 1), 2));  % C×N  (works for both)
-	if isvector(A)
-		F = reshape(A, 1, []);   % single sample → 1×C
+	% Extract activations from one layer, always returning N×D.
+	%
+	% imageInputLayer (CNN): activations returns H×W×C×N.
+	%   Apply global average pooling over H and W → N×C.
+	%   Handles both conv layers (H>1) and FC layers (H=W=1, so GAP = identity).
+	%
+	% featureInputLayer (MLP): activations returns D×N (units × observations).
+	%   Use 'OutputAs','rows' to get N×D directly.
+	if isa(net.Layers(1), 'nnet.cnn.layer.ImageInputLayer')
+		A = double(activations(net, X, layerName));   % H×W×C×N
+		A = squeeze(mean(mean(A, 1), 2));             % → C×N or C (N=1)
+		if isvector(A)
+			F = reshape(A, 1, []);   % single sample → 1×C
+		else
+			F = A';                  % N×C
+		end
 	else
-		F = A';                  % N×C
+		% featureInputLayer: 'OutputAs','rows' guarantees N×D
+		F = double(activations(net, X, layerName, 'OutputAs', 'rows'));
 	end
 end
 
@@ -407,9 +417,14 @@ function [XTrain, YInt, numClasses] = loadTrainData(net)
 	% Detect input format expected by the network
 	inputLayer = net.Layers(1);
 	if isa(inputLayer, 'nnet.cnn.layer.ImageInputLayer')
-		XTrain = readIDXImages4D(imPath);   % 28×28×1×N
+		XTrain = readIDXImages4D(imPath);           % 28×28×1×N
 	else
-		XTrain = readIDXFeatures(imPath);   % N×784
+		% Use the same pipeline as MLP_reader: load 4D images (correct
+		% row/col orientation via permute) then flatten column-major so
+		% the 784-element feature vector matches what the MLP was trained on.
+		imgs   = readIDXImages4D(imPath);           % 28×28×1×N
+		[H, W, C, N] = size(imgs);
+		XTrain = reshape(imgs, H*W*C, N)';          % N×784, column-major
 	end
 
 	labels    = readIDXLabels(lblPath);
@@ -430,16 +445,6 @@ function images = readIDXImages4D(filePath)
 	images = reshape(im3, [rows, cols, 1, N]);
 end
 
-function X = readIDXFeatures(filePath)
-	fid     = fopen(filePath, 'rb');
-	cleaner = onCleanup(@() fclose(fid));
-	fread(fid, 1, 'int32', 0, 'ieee-be');
-	N    = fread(fid, 1, 'int32', 0, 'ieee-be');
-	rows = fread(fid, 1, 'int32', 0, 'ieee-be');
-	cols = fread(fid, 1, 'int32', 0, 'ieee-be');
-	px   = fread(fid, N*rows*cols, 'uint8=>single');
-	X    = reshape(px, [rows*cols, N])' ./ 255;   % N×784
-end
 
 function labels = readIDXLabels(filePath)
 	fid     = fopen(filePath, 'rb');
