@@ -2,7 +2,8 @@ clear; clc; close all;
 
 %% USER SETTINGS
 
-dataFolder = getSetFolderPaths('resolve', 'trainRoot', '');
+here       = fileparts(mfilename('fullpath'));
+dataFolder = askFolder(fullfile(here, 'MNIST_digits', 'raw'), 'Training folder');
 
 modelFile = fullfile(dataFolder, 'mnist_cnn_model.mat');
 
@@ -76,6 +77,12 @@ save(modelFile, 'net');
 fprintf('\nModel saved to:\n%s\n', modelFile);
 
 %% LOCAL FUNCTIONS
+
+function folder = askFolder(defaultPath, label)
+    fprintf('%s [%s]:\n', label, defaultPath);
+    reply = strtrim(input('? ', 's'));
+    if isempty(reply), folder = defaultPath; else, folder = reply; end
+end
 
 function [XTrain, YTrain] = loadCSV(csvFile)
     trainData = readmatrix(csvFile);

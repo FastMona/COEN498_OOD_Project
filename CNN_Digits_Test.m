@@ -2,8 +2,9 @@ clear; clc; close all;
 
 %% USER SETTINGS
 
-trainFolder = getSetFolderPaths('resolve', 'trainRoot', '');
-testFolder  = getSetFolderPaths('resolve', 'testRoot',  '');
+here        = fileparts(mfilename('fullpath'));
+trainFolder = askFolder(fullfile(here, 'MNIST_digits', 'raw'), 'Training folder');
+testFolder  = askFolder(fullfile(here, 'KMNIST_japanese'),     'Test folder');
 
 modelFile = fullfile(trainFolder, 'mnist_cnn_model.mat');
 
@@ -154,6 +155,12 @@ else
 end
 
 %% LOCAL FUNCTIONS
+
+function folder = askFolder(defaultPath, label)
+    fprintf('%s [%s]:\n', label, defaultPath);
+    reply = strtrim(input('? ', 's'));
+    if isempty(reply), folder = defaultPath; else, folder = reply; end
+end
 
 function [XTest, YTest] = loadCSV(csvFile)
     testData = readmatrix(csvFile);

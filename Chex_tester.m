@@ -33,15 +33,12 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 %                       Set true to enable pixel-space filtering.
 
 	% ── Resolve paths ────────────────────────────────────────────────────
+	here = fileparts(mfilename('fullpath'));
 	if nargin < 1 || isempty(chexRoot)
-		chexRoot = getSetFolderPaths('resolve', 'trainRoot');
-	else
-		chexRoot = getSetFolderPaths('resolve', 'trainRoot', chexRoot);
+		chexRoot = askFolder(fullfile(here, 'chex_train'), 'CheXpert training folder');
 	end
 	if nargin < 2 || isempty(testFolder)
-		testFolder = getSetFolderPaths('resolve', 'testRoot');
-	else
-		testFolder = getSetFolderPaths('resolve', 'testRoot', testFolder);
+		testFolder = askFolder(fullfile(here, 'chex_test'), 'CheXpert test folder');
 	end
 	if nargin < 3 || isempty(rejectThreshold)
 		rejectThreshold = 0.5;
@@ -79,8 +76,8 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 	% ── Header ───────────────────────────────────────────────────────────
 	sep('=', 64);
 	fprintf('  Chex Tester\n');
-	fprintf('  Train : %s\n', getSetFolderPaths(chexRoot));
-	fprintf('  Test  : %s\n', getSetFolderPaths(testFolder));
+	fprintf('  Train : %s\n', chexRoot);
+	fprintf('  Test  : %s\n', testFolder);
 	sep('=', 64);
 
 	% ── Preallocate outputs ───────────────────────────────────────────────
@@ -258,4 +255,10 @@ function img = readAndPreprocess(filename)
 	if ismatrix(img)
 		img = reshape(img, size(img, 1), size(img, 2), 1);
 	end
+end
+
+function folder = askFolder(defaultPath, label)
+	fprintf('%s [%s]:\n', label, defaultPath);
+	reply = strtrim(input('? ', 's'));
+	if isempty(reply), folder = defaultPath; else, folder = reply; end
 end

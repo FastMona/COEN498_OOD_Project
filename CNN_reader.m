@@ -12,10 +12,10 @@ function results = CNN_reader(dataRoot, forceRetrain)
 %   is true. Otherwise, the function reuses the last saved trained CNN when
 %   its training-data root matches dataRoot.
 
-	if nargin < 1
-		dataRoot = '';
+	if nargin < 1 || isempty(strtrim(char(string(dataRoot))))
+		here     = fileparts(mfilename('fullpath'));
+		dataRoot = fullfile(here, 'MNIST_digits', 'raw');
 	end
-	dataRoot = getSetFolderPaths('resolve', 'trainRoot', dataRoot);
 	if nargin < 2
 		forceRetrain = false;
 	end
@@ -28,7 +28,7 @@ function results = CNN_reader(dataRoot, forceRetrain)
 
 	validateMNISTFiles(trainImagesPath, trainLabelsPath, testImagesPath, testLabelsPath);
 
-	fprintf('loading training data from: %s\n', getSetFolderPaths(dataRoot));
+	fprintf('loading training data from: %s\n', (dataRoot));
 	[XTrain, YTrain] = loadMNIST(trainImagesPath, trainLabelsPath, classNames);
 	[XTest, YTest]   = loadMNIST(testImagesPath, testLabelsPath, classNames);
 
@@ -65,12 +65,12 @@ function results = CNN_reader(dataRoot, forceRetrain)
 	cacheFile = getCNNCacheFile();
 	[net, loadedFromCache] = tryLoadCNNCache(cacheFile, trainImagesPath, trainLabelsPath, forceRetrain);
 	if loadedFromCache
-		fprintf('Loaded cached CNN model from: %s\n', getSetFolderPaths(cacheFile));
+		fprintf('Loaded cached CNN model from: %s\n', (cacheFile));
 	else
 		fprintf('Training CNN...\n');
 		net = trainNetwork(XTrain, YTrain, layers, options);
 		saveCNNCache(cacheFile, net, trainImagesPath, trainLabelsPath);
-		fprintf('Saved CNN cache to: %s\n', getSetFolderPaths(cacheFile));
+		fprintf('Saved CNN cache to: %s\n', (cacheFile));
 	end
 
 	fprintf('Running inference on test set...\n');

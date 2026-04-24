@@ -9,18 +9,18 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 %   RESULTS = Folder_testor(trainFolder, testFolder, rejectThreshold) uses
 %   rejectThreshold as the MD_filter vigilance threshold in [0,1].
 
-	% Get training folder from user
-	if nargin < 1 || strlength(string(trainFolder)) == 0
-		trainRoot = getSetFolderPaths('resolve', 'trainRoot');
+	here = fileparts(mfilename('fullpath'));
+
+	if nargin < 1 || isempty(strtrim(char(string(trainFolder))))
+		trainRoot = askFolder(fullfile(here, 'MNIST_digits', 'raw'), 'Training folder');
 	else
-		trainRoot = getSetFolderPaths('resolve', 'trainRoot', trainFolder);
+		trainRoot = char(string(trainFolder));
 	end
-	
-	% Get testing folder from user
-	if nargin < 2 || strlength(string(testFolder)) == 0
-		oodFolder = getSetFolderPaths('resolve', 'testRoot');
+
+	if nargin < 2 || isempty(strtrim(char(string(testFolder))))
+		oodFolder = askFolder(fullfile(here, 'KMNIST_japanese'), 'Test folder');
 	else
-		oodFolder = getSetFolderPaths('resolve', 'testRoot', testFolder);
+		oodFolder = char(string(testFolder));
 	end
 
 	if nargin < 3 || isempty(rejectThreshold)
@@ -31,8 +31,8 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 			'rejectThreshold must be between 0 and 1.');
 	end
 	fprintf('=== Folder Testor Configuration ===\n');
-	fprintf('loading training data from: %s\n', getSetFolderPaths(trainRoot));
-	fprintf('Running inference test on: %s\n', getSetFolderPaths(oodFolder));
+	fprintf('loading training data from: %s\n', trainRoot);
+	fprintf('Running inference test on:  %s\n', oodFolder);
 
 	fprintf('\n=== OOD manifold filter ===\n');
 	mdResults = MD_filter(oodFolder, rejectThreshold, false, false);
@@ -87,4 +87,10 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 	results.AgreementAcceptedPct = agreementAccepted;
 	results.DigitDistribution = distTbl;
 	results.AcceptedMask = mdResults.Accepted;
+end
+
+function folder = askFolder(defaultPath, label)
+	fprintf('%s [%s]:\n', label, defaultPath);
+	reply = strtrim(input('? ', 's'));
+	if isempty(reply), folder = defaultPath; else, folder = reply; end
 end

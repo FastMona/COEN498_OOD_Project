@@ -46,10 +46,10 @@ function results = MLP_reader(dataRoot, forceRetrain)
 		end
 	end
 
-	if nargin < 1
-		dataRoot = '';
+	if nargin < 1 || isempty(strtrim(char(string(dataRoot))))
+		here     = fileparts(mfilename('fullpath'));
+		dataRoot = fullfile(here, 'MNIST_digits', 'raw');
 	end
-	dataRoot = getSetFolderPaths('resolve', 'trainRoot', dataRoot);
 	if nargin < 2
 		forceRetrain = false;
 	end
@@ -62,7 +62,7 @@ function results = MLP_reader(dataRoot, forceRetrain)
 
 	validateMNISTFiles(trainImagesPath, trainLabelsPath, testImagesPath, testLabelsPath);
 
-	fprintf('loading training data from: %s\n', getSetFolderPaths(dataRoot));
+	fprintf('loading training data from: %s\n', (dataRoot));
 	[XTrain4D, YTrain] = loadMNIST(trainImagesPath, trainLabelsPath, classNames);
 	[XTest4D,  YTest]  = loadMNIST(testImagesPath,  testLabelsPath, classNames);
 
@@ -92,12 +92,12 @@ function results = MLP_reader(dataRoot, forceRetrain)
 	cacheFile = getMLPCacheFile();
 	[net, loadedFromCache] = tryLoadMLPCache(cacheFile, trainImagesPath, trainLabelsPath, hiddenLayerSizes, forceRetrain);
 	if loadedFromCache
-		fprintf('Loaded cached MLP model from: %s\n', getSetFolderPaths(cacheFile));
+		fprintf('Loaded cached MLP model from: %s\n', (cacheFile));
 	else
 		fprintf('Training MLP  784 → [%s] → 10 ...\n', archStr);
 		net = trainNetwork(XTrain, YTrain, layers, options);
 		saveMLPCache(cacheFile, net, trainImagesPath, trainLabelsPath, hiddenLayerSizes);
-		fprintf('Saved MLP cache to: %s\n', getSetFolderPaths(cacheFile));
+		fprintf('Saved MLP cache to: %s\n', (cacheFile));
 	end
 
 	fprintf('Running inference on test set...\n');

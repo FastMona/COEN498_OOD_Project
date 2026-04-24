@@ -299,12 +299,17 @@ function F = feats(net, imds, layerName)
 		end
 		imgBatch = cat(4, imgs{:});   % H×W×C×count
 
-		% Activations on this small batch only
+		% Activations on this small batch only.
+		% CNN conv layers  → 4D  H×W×C×count  → apply GAP → count×C
+		% MLP FC layers    → 2D  D×count       → transpose → count×D
 		A = double(activations(net, imgBatch, layerName));
 		if ndims(A) == 4
 			A = squeeze(mean(mean(A, 1), 2));   % C×count  or  C (count=1)
 			if isvector(A), A = reshape(A, 1, []); else, A = A'; end
+		elseif ismatrix(A) && size(A, 2) == count && size(A, 1) ~= count
+			A = A';   % D×count → count×D
 		end
+		% else: already count×D (N×D) — use as-is
 
 		if isempty(F)
 			F = zeros(N, size(A, 2), 'double');
