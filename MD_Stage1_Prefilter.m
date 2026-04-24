@@ -1,19 +1,19 @@
-function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
-% MD_filter Train or apply a digit-manifold OOD detector.
+function results = MD_Stage1_Prefilter(testInput, vigilance, forceRetrain, verboseOutput)
+% MD_Stage1_Prefilter Train or apply a digit-manifold OOD detector.
 %
-%   MD_filter() trains or loads the manifold model built from MNIST_digits
+%   MD_Stage1_Prefilter() trains or loads the manifold model built from MNIST_digits
 %   and remembers it on disk. No test data is evaluated in this mode.
 %
-%   RESULTS = MD_filter(testInput) evaluates one sample, a batch of samples,
+%   RESULTS = MD_Stage1_Prefilter(testInput) evaluates one sample, a batch of samples,
 %   or a folder of IDX test patterns using the cached manifold model.
 %
-%   RESULTS = MD_filter(testInput, vigilance) changes the acceptance
+%   RESULTS = MD_Stage1_Prefilter(testInput, vigilance) changes the acceptance
 %   threshold. Default vigilance is 0.5.
 %
-%   RESULTS = MD_filter(testInput, vigilance, forceRetrain) forces manifold
+%   RESULTS = MD_Stage1_Prefilter(testInput, vigilance, forceRetrain) forces manifold
 %   retraining when true.
 %
-%   RESULTS = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
+%   RESULTS = MD_Stage1_Prefilter(testInput, vigilance, forceRetrain, verboseOutput)
 %   enables or suppresses console output.
 %
 %   testInput may be one of:
@@ -34,7 +34,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 		verboseOutput = true;
 	end
 	if vigilance < 0 || vigilance > 1
-		error('MD_filter:badThreshold', 'vigilance must be between 0 and 1.');
+		error('MD_Stage1_Prefilter:badThreshold', 'vigilance must be between 0 and 1.');
 	end
 
 	trainRoot = getSetFolderPaths('resolve', 'trainRoot');
@@ -45,7 +45,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 
 	if nargin < 1 || isempty(testInput)
 		if verboseOutput
-			fprintf('\nMD_filter model ready\n');
+			fprintf('\nMD_Stage1_Prefilter model ready\n');
 			fprintf('Train data: %s\n', getSetFolderPaths(trainRoot));
 			fprintf('Digits modeled: 0..9\n');
 		end
@@ -72,7 +72,7 @@ function results = MD_filter(testInput, vigilance, forceRetrain, verboseOutput)
 	end
 
 	if verboseOutput
-		fprintf('\nMD_filter summary\n');
+		fprintf('\nMD_Stage1_Prefilter summary\n');
 		fprintf('Running inference test on: %s\n', getSetFolderPaths(inputSource));
 		fprintf('Vigilance:  %.2f\n', vigilance);
 		fprintf('Samples:    %d\n', numSamples);
@@ -240,14 +240,14 @@ function [XTest, images4D, inputLabels, inputSource] = normalizeTestInput(testIn
 		return;
 	end
 
-	error('MD_filter:unsupportedInput', ...
+	error('MD_Stage1_Prefilter:unsupportedInput', ...
 		'Unsupported testInput type. Use a folder path or numeric image/features.');
 end
 
 function X = featuresFromNumericInput(testInput)
 	if isvector(testInput)
 		if numel(testInput) ~= 784
-			error('MD_filter:badVector', 'Feature vector input must have 784 elements.');
+			error('MD_Stage1_Prefilter:badVector', 'Feature vector input must have 784 elements.');
 		end
 		X = reshape(single(testInput), 1, 784);
 		return;
@@ -275,7 +275,7 @@ function X = featuresFromNumericInput(testInput)
 		return;
 	end
 
-	error('MD_filter:badNumericInput', ...
+	error('MD_Stage1_Prefilter:badNumericInput', ...
 		'Numeric input must be 28x28, Nx784, 28x28xN, or 28x28x1xN.');
 end
 
@@ -296,10 +296,10 @@ function [XTest, labels, images4D] = loadTestFeatures(dataRoot)
 	testImagesPath = fullfile(dataRoot, 't10k-images-idx3-ubyte');
 	testLabelsPath = fullfile(dataRoot, 't10k-labels-idx1-ubyte');
 	if ~isfile(testImagesPath)
-		error('MD_filter:missingOODImages', 'Missing file: %s', testImagesPath);
+		error('MD_Stage1_Prefilter:missingOODImages', 'Missing file: %s', testImagesPath);
 	end
 	if ~isfile(testLabelsPath)
-		error('MD_filter:missingOODLabels', 'Missing file: %s', testLabelsPath);
+		error('MD_Stage1_Prefilter:missingOODLabels', 'Missing file: %s', testLabelsPath);
 	end
 
 	images4D = readIDXImages(testImagesPath);

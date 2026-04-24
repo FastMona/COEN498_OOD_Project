@@ -7,7 +7,7 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 %   RESULTS = Folder_testor(trainFolder, testFolder) uses specified folders.
 %
 %   RESULTS = Folder_testor(trainFolder, testFolder, rejectThreshold) uses
-%   rejectThreshold as the MD_filter vigilance threshold in [0,1].
+%   rejectThreshold as the MD_Stage1_Prefilter vigilance threshold in [0,1].
 
 	% Get training folder from user
 	if nargin < 1 || strlength(string(trainFolder)) == 0
@@ -35,7 +35,7 @@ function results = Folder_testor(trainFolder, testFolder, rejectThreshold)
 	fprintf('Running inference test on: %s\n', getSetFolderPaths(oodFolder));
 
 	fprintf('\n=== OOD manifold filter ===\n');
-	mdResults = MD_filter(oodFolder, rejectThreshold, false, false);
+	mdResults = MD_Stage1_Prefilter(oodFolder, rejectThreshold, false, false);
 	fprintf('Vigilance: %.2f\n', rejectThreshold);
 	fprintf('Samples:   %d\n', numel(mdResults.Accepted));
 	fprintf('Accepted:  %d (%.2f%%)\n', mdResults.AcceptedCount, 100 * mdResults.AcceptedCount / numel(mdResults.Accepted));
