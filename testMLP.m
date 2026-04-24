@@ -25,23 +25,27 @@ if nargin < 2 || isempty(W)
 end
 
 %% ================= LOAD DATA =================
-data = readmatrix(csv_file);
+if isfolder(csv_file)
+    [X, Y] = loadMNISTForMLP(csv_file);   % 784×N, labels 1–10
+    N = length(Y);
+else
+    data = readmatrix(csv_file);
+    Y = data(:,1);        % labels (0–9)
+    X = data(:,2:end);    % pixels
 
-Y = data(:,1);        % labels (0–9)
-X = data(:,2:end);    % pixels
+    %% ================= PREPROCESS =================
 
-%% ================= PREPROCESS =================
+    % Normalize
+    X = X / 255;
 
-% Normalize
-X = X / 255;
+    % Transpose → (features × samples)
+    X = X';
 
-% Transpose → (features × samples)
-X = X';
+    % Fix labels (0→9 → 1→10)
+    Y = Y + 1;
 
-% Fix labels (0→9 → 1→10)
-Y = Y + 1;
-
-N = length(Y);
+    N = length(Y);
+end
 
 %% ================= TEST =================
 correct = 0;
