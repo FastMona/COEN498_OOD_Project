@@ -29,8 +29,8 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 %     chexRoot        : flat folder of normal training .jpg images
 %     testFolder      : flat folder of test .jpg images (ID or OOD)
 %     rejectThreshold : Stage-1 vigilance [0,1]  default 0.5
-%     stage1Active    : logical, default false (Stage 1 dormant — all pass)
-%                       Set true to enable pixel-space filtering.
+%     stage1Active    : logical, default true (Stage 1 active — pixel-space gate enabled)
+%                       Set false to make Stage 1 dormant (all samples pass).
 
 	% ── Resolve paths ────────────────────────────────────────────────────
 	here = fileparts(mfilename('fullpath'));
@@ -44,7 +44,7 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 		rejectThreshold = 0.5;
 	end
 	if nargin < 4 || isempty(stage1Active)
-		stage1Active = false;
+		stage1Active = true;
 	end
 	if rejectThreshold < 0 || rejectThreshold > 1
 		error('Chex_tester:badThreshold', 'rejectThreshold must be between 0 and 1.');
@@ -201,7 +201,7 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 	results = struct();
 	results.ChexRoot        = chexRoot;
 	results.TestFolder      = testFolder;
-	results.RejectThreshold = rejectThreshold;
+	results.Stage1RejectThreshold = rejectThreshold;
 	results.Stage1          = s1;
 	results.CNN             = struct('Stage2Scores', cnnS2Scores, 'Network', cnnNet);
 	results.MLP             = struct('Stage2Scores', mlpS2Scores, 'Network', mlpNet);
