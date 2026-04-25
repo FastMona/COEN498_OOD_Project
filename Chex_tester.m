@@ -271,11 +271,7 @@ function folder = resolveFolderInput(folderInput, here, defaultName, label)
 	defaultPath = fullfile(here, defaultName);
 
 	if nargin < 1 || isempty(folderInput)
-		if isfolder(defaultPath)
-			folder = defaultPath;
-			return;
-		end
-		folder = askFolder(defaultPath, sprintf('%s (default folder not found, enter a folder path)', label));
+		folder = askFolder(defaultPath, label);
 	else
 		folder = char(string(folderInput));
 		if ~isfolder(folder)
