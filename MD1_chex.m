@@ -63,12 +63,6 @@ function results = MD1_chex(testInput, chexRoot, vigilance, forceRetrain)
     acceptedCount = sum(accepted);
     rejectedCount = numSamples - acceptedCount;
 
-    fprintf('\n--- Stage 1: pixel-space prefilter ---\n');
-    fprintf('  Vigilance   : %.2f\n', vigilance);
-    fprintf('  Test images : %d\n',   numSamples);
-    fprintf('  Accepted    : %d (%.1f%%)\n', acceptedCount, 100 * acceptedCount / numSamples);
-    fprintf('  Rejected    : %d (%.1f%%)\n', rejectedCount, 100 * rejectedCount / numSamples);
-
     results = struct();
     results.NumSamples     = numSamples;
     results.TestFiles      = testFiles;
