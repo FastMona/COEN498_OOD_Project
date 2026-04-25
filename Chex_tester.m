@@ -35,10 +35,14 @@ function results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Acti
 	% ── Resolve paths ────────────────────────────────────────────────────
 	here = fileparts(mfilename('fullpath'));
 	if nargin < 1 || isempty(chexRoot)
-		chexRoot = askFolder(fullfile(here, 'chex_train'), 'CheXpert training folder');
+		chexRoot = resolveFolderInput([], here, 'chex_train', 'CheXpert training folder');
+	else
+		chexRoot = resolveFolderInput(chexRoot, here, 'chex_train', 'CheXpert training folder');
 	end
 	if nargin < 2 || isempty(testFolder)
-		testFolder = askFolder(fullfile(here, 'chex_test'), 'CheXpert test folder');
+		testFolder = resolveFolderInput([], here, 'chex_test', 'CheXpert test folder');
+	else
+		testFolder = resolveFolderInput(testFolder, here, 'chex_test', 'CheXpert test folder');
 	end
 	if nargin < 3 || isempty(rejectThreshold)
 		rejectThreshold = 0.5;
@@ -261,4 +265,32 @@ function folder = askFolder(defaultPath, label)
 	fprintf('%s [%s]:\n', label, defaultPath);
 	reply = strtrim(input('? ', 's'));
 	if isempty(reply), folder = defaultPath; else, folder = reply; end
+end
+
+function folder = resolveFolderInput(folderInput, here, defaultName, label)
+	defaultPath = fullfile(here, defaultName);
+
+	if nargin < 1 || isempty(folderInput)
+		if isfolder(defaultPath)
+			folder = defaultPath;
+			return;
+		end
+		folder = askFolder(defaultPath, sprintf('%s (default folder not found, enter a folder path)', label));
+	else
+		folder = char(string(folderInput));
+		if ~isfolder(folder)
+			candidate = fullfile(here, folder);
+			if isfolder(candidate)
+				folder = candidate;
+			end
+		end
+	end
+
+	if ~isfolder(folder)
+		error('Chex_tester:missingFolder', ...
+			'%s not found: %s\nUse an absolute path or a path relative to %s.', ...
+			label, folder, here);
+	end
+
+	folder = char(string(folder));
 end

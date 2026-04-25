@@ -25,17 +25,14 @@ function results = MLP_chex(chexRoot, forceRetrain)
 %     .StdScore   – std of scores over test set
 %     .ChexRoot   – resolved image folder path
 
-    if nargin < 1 || isempty(chexRoot)
-        here = fileparts(mfilename('fullpath'));
-        chexRoot = fullfile(here, 'chex_train');
-    end
+    chexRoot = resolveChexRoot(chexRoot);
     if nargin < 2
         forceRetrain = false;
     end
 
     if ~isfolder(chexRoot)
         error('MLP_chex:missingFolder', ...
-            'Image folder not found: %s\nRun pad_chex.py first.', chexRoot);
+            'Image folder not found: %s\nUse an absolute path or a path relative to this file.', chexRoot);
     end
 
     % -----------------------------------------------------------------------
@@ -229,5 +226,21 @@ function img = readAndPreprocess(filename)
     img = im2single(img);
     if ndims(img) == 2
         img = reshape(img, size(img, 1), size(img, 2), 1);
+    end
+end
+
+function chexRoot = resolveChexRoot(chexRoot)
+    here = fileparts(mfilename('fullpath'));
+    if nargin < 1 || isempty(chexRoot)
+        chexRoot = fullfile(here, 'chex_train');
+        return;
+    end
+
+    chexRoot = char(string(chexRoot));
+    if ~isfolder(chexRoot)
+        candidate = fullfile(here, chexRoot);
+        if isfolder(candidate)
+            chexRoot = candidate;
+        end
     end
 end
