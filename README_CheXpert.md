@@ -6,20 +6,19 @@ A three-stage out-of-distribution (OOD) detection pipeline for chest radiographs
 
 ## Repository Layout
 
-```
+```text
 COEN498_OOD_Project/
-    MD_chex.m
+    Chex_tester.m
     MD1_chex.m
-    MD2_chex.m
+    MD3_chex.m
     CNN_chex.m
     MLP_chex.m
-    Chex_tester.m
+    chex_cleanUp.m
     Utilities/
-        visualize_chex_examples.m
+        chex_view_examples.m
         insert_donut_artifact.m
         insert_square_artifact.m
         pad_chex.py
-        cleanUp.m
     chex_train/          (41 527 normal JPEGs, 390×320 px)
     chex_donut75/        (3 000 artificially corrupted JPEGs)
     chex_squares75/      (3 000 artificially corrupted JPEGs)
@@ -27,9 +26,13 @@ COEN498_OOD_Project/
     trained_models/
         cnn_chex_cache.mat
         mlp_chex_cache.mat
-        md1_chex_cache.mat
-        md2_cnn_chex_cache.mat
-        md2_mlp_chex_cache.mat
+        md_chex_cache.mat
+        stage3_chex_CNN_chex_16_32_64_128_fc256_lhl.mat
+        stage3_chex_CNN_chex_16_32_64_128_fc256_fusion.mat
+        stage3_chex_CNN_chex_16_32_64_128_fc256_mbm.mat
+        stage3_chex_MLP_chex_1024_512_256_128_lhl.mat
+        stage3_chex_MLP_chex_1024_512_256_128_fusion.mat
+        stage3_chex_MLP_chex_1024_512_256_128_mbm.mat
 ```
 
 ---
@@ -46,7 +49,7 @@ COEN498_OOD_Project/
 ## Datasets
 
 | Folder | Contents | Role |
-|---|---|---|
+| --- | --- | --- |
 | `chex_train/` | 41 527 normal chest X-rays, 390×320 px, grayscale JPEG | Training data — all labelled normal |
 | `chex_donut75/` | 3 000 X-rays with synthetic circular artefacts | Synthetic abnormal test set |
 | `chex_squares75/` | 3 000 X-rays with synthetic rectangular artefacts | Synthetic abnormal test set |
@@ -71,6 +74,40 @@ insert_square_artifact('<source_folder>', '<output_folder>', numImages);
 
 ---
 
+## Pipeline Overview
+
+The pipeline is designed around the assumption that only normal images are available at training time. Abnormality is detected as deviation from the learned normal distribution.
+
+```text
+Test image
+    │
+    ▼
+Stage 1 — Pixel-Space Pre-Filter  (MD1_chex)
+    │  Builds a single PCA manifold from all normal training images.
+    │  Rejects samples whose pixel-space MD confidence < vigilance.
+    │  Active by default (vigilance = 0.5).
+    │
+    ▼  accepted samples only
+Stage 2 — Regression Scoring  (CNN_chex + MLP_chex)
+    │  Both networks trained with target label 1.0 for all normals.
+    │  Score ≈ 1.0 → normal,  Score ≪ 1.0 → abnormal.
+    │  Scores reported; no hard threshold applied at this stage.
+    │
+    ▼  accepted samples only
+Stage 3 — Latent-Space Post-Filter  (MD3_chex × 2 networks × 3 algorithms)
+    │  Mahalanobis distance in hidden-layer feature space.
+    │  Three independent algorithms per network:
+    │    Algorithm 1  LHL    — last hidden layer (relu5/CNN, relu4/MLP)
+    │    Algorithm 2  FUSION — all layers z-normalised and concatenated
+    │    Algorithm 3  MBM    — independent detector per architectural branch
+    ▼
+    6 Stage-3 accept/reject decisions  (CNN×3 + MLP×3)
+```
+
+Unlike the digit pipeline, Stage 1 is **active by default** for CheXpert. Pixel-space MD is effective here because clearly non-radiographic images differ grossly from chest X-rays at the pixel level.
+
+---
+
 ## Quick Start
 
 Set the MATLAB current folder to the repository root.
@@ -78,22 +115,29 @@ Set the MATLAB current folder to the repository root.
 ### Full three-stage pipeline
 
 ```matlab
-results = Chex_tester('chex_donut75');      % test on donut-artefact images
-results = Chex_tester('chex_squares75');    % test on square-artefact images
-results = Chex_tester('chex_pacemaker');    % test on pacemaker images
+results = Chex_tester('chex_train', 'chex_donut75');
+results = Chex_tester('chex_train', 'chex_squares75');
+results = Chex_tester('chex_train', 'chex_pacemaker');
 ```
 
-### Run individual stages
+Prompts to confirm or replace folder paths on each run.
+
+### Custom vigilance threshold
 
 ```matlab
-% Stage 1 only (pixel-space manifold prefilter)
-results = MD1_chex('chex_donut75', 'chex_train', 0.5);
+results = Chex_tester('chex_train', 'chex_donut75', 0.7);
+```
 
-% Stages 1 + 2 + 3 (full MD pipeline)
-results = MD_chex('chex_donut75', 'chex_train', 0.5);
+### Disable Stage 1 filter
 
-% Stage 3 only (latent-space manifold filter)
-results = MD2_chex('chex_donut75', 'chex_train', 0.5);
+```matlab
+results = Chex_tester('chex_train', 'chex_donut75', 0.5, false);
+```
+
+### Stage 1 pre-filter only
+
+```matlab
+s1 = MD1_chex('chex_donut75', 'chex_train', 0.5);
 ```
 
 ### Train / evaluate regression networks independently
@@ -106,36 +150,14 @@ mlp = MLP_chex('chex_train');
 ### Visualise examples
 
 ```matlab
-visualize_chex_examples('chex_pacemaker', 8);
+chex_view_examples('chex_pacemaker');
 ```
 
-### Clear all caches
+### Clear all CheXpert caches
 
 ```matlab
-cleanUp();
+chex_cleanUp();
 ```
-
----
-
-## Pipeline Overview
-
-The pipeline is designed around the assumption that only normal images are available at training time. Abnormality is detected as deviation from the learned normal distribution.
-
-```
-Test image
-    │
-    ▼
-Stage 1 — Pixel-space manifold distance (MD1_chex)
-    │  Reject if far from normal pixel manifold
-    ▼
-Stage 2 — Regression scoring (CNN_chex + MLP_chex)
-    │  Score ≈ 1.0 → normal,  Score ≪ 1.0 → abnormal
-    ▼
-Stage 3 — Latent-space manifold distance (MD2_chex)
-       Reject if far from normal latent manifold
-```
-
-Each stage can be used independently or composed via `MD_chex` / `Chex_tester`.
 
 ---
 
@@ -147,69 +169,37 @@ Runs the full three-stage pipeline on a test folder and prints a summary report.
 
 **Workflow:**
 
-1. Load and preprocess all images from `testFolder`.
+1. Prompt for training (`chexRoot`) and test (`testFolder`) folder paths.
 2. Run Stage 1 (`MD1_chex`): reject images far from the pixel-space manifold.
-3. Run Stage 2 (`CNN_chex`, `MLP_chex`): compute regression anomaly scores.
-4. Run Stage 3 (`MD2_chex`): reject images far from the latent-space manifold.
-5. Report acceptance rates and score distributions at each stage.
+3. Run Stage 2 (`CNN_chex`, `MLP_chex`): compute regression anomaly scores on accepted images.
+4. Run Stage 3 (`MD3_chex`): apply LHL, FUSION, and MBM detectors on accepted images for both networks.
+5. Print per-stage acceptance counts and a final summary table.
 
 **Call forms:**
 
 ```matlab
-results = Chex_tester('chex_donut75');
-results = Chex_tester('chex_donut75', 'chex_train');
-results = Chex_tester('chex_donut75', 'chex_train', 0.5);
+results = Chex_tester();
+results = Chex_tester(chexRoot, testFolder);
+results = Chex_tester(chexRoot, testFolder, rejectThreshold);
+results = Chex_tester(chexRoot, testFolder, rejectThreshold, stage1Active);
 ```
 
-The second argument (training folder) defaults to `chex_train`. The third argument is the vigilance threshold in `[0, 1]`.
+`rejectThreshold` is the Stage 1 vigilance in `[0, 1]`, default `0.5`. `stage1Active` is logical, default `true`.
 
 ---
 
-### `MD_chex.m` — Full Three-Stage Manifold Pipeline
+### `MD1_chex.m` — Stage 1: Pixel-Space Manifold Pre-Filter
 
-Implements all three stages in one call.
-
-**Call forms:**
-
-```matlab
-results = MD_chex('chex_donut75', 'chex_train', 0.5);
-results = MD_chex('chex_donut75', 'chex_train', 0.5, true);  % force retrain
-```
-
----
-
-### `MD1_chex.m` — Stage 1: Pixel-Space Manifold Prefilter
-
-Trains a single PCA manifold on the flattened pixel vectors of all normal training images (124 800 features per image, one manifold for the normal class). A test image is rejected if its manifold distance exceeds the threshold derived from the training distribution.
-
-**Algorithm:** identical to the digit manifold (see below), applied to the full image vector rather than per-class manifolds.
+Builds a single PCA manifold from the flattened pixel vectors of all normal training images. A test image is rejected if its Mahalanobis confidence falls below the vigilance threshold.
 
 **Call forms:**
 
 ```matlab
-results = MD1_chex('chex_donut75', 'chex_train', 0.5);
-results = MD1_chex('chex_donut75', 'chex_train', 0.5, true);  % force retrain
+s1 = MD1_chex(testFolder, chexRoot, vigilance);
+s1 = MD1_chex(testFolder, chexRoot, vigilance, true);   % force retrain
 ```
 
-**Cache:** `trained_models/md1_chex_cache.mat`
-
----
-
-### `MD2_chex.m` — Stage 3: Latent-Space Manifold Filter
-
-Extracts penultimate-layer activations from CNN and MLP after Stage 2, then builds a PCA manifold on those latent vectors from the normal training images. Test images whose latent representations fall far from this manifold are flagged as abnormal.
-
-- CNN latent source: `relu5` layer (FC output before final regression head)
-- MLP latent source: `relu4` layer (last hidden layer)
-
-**Call forms:**
-
-```matlab
-results = MD2_chex('chex_donut75', 'chex_train', 0.5);
-results = MD2_chex('chex_donut75', 'chex_train', 0.5, true);  % force retrain
-```
-
-**Caches:** `trained_models/md2_cnn_chex_cache.mat`, `trained_models/md2_mlp_chex_cache.mat`
+**Cache:** `trained_models/md_chex_cache.mat`
 
 ---
 
@@ -219,18 +209,26 @@ Trained as a one-class regressor: all normal training images have target label `
 
 **Architecture:**
 
-```
+```text
 Input [320, 390, 1]
-  Conv2D(3×3, 16 filters) + BatchNorm + ReLU + MaxPool(2×2)  → [160, 195, 16]
-  Conv2D(3×3, 32 filters) + BatchNorm + ReLU + MaxPool(2×2)  → [ 80,  97, 32]
-  Conv2D(3×3, 64 filters) + BatchNorm + ReLU + MaxPool(2×2)  → [ 40,  48, 64]
-  Conv2D(3×3,128 filters) + BatchNorm + ReLU + MaxPool(2×2)  → [ 20,  24,128]
-  Flatten
-  FC(256) + ReLU         ← latent features extracted here (relu5)
-  FC(1)  → anomaly score (regression)
+  Conv2D(3×3, 16 filters) + BatchNorm + ReLU (relu1) + MaxPool(2×2)  → [160, 195, 16]
+  Conv2D(3×3, 32 filters) + BatchNorm + ReLU (relu2) + MaxPool(2×2)  → [ 80,  97, 32]
+  Conv2D(3×3, 64 filters) + BatchNorm + ReLU (relu3) + MaxPool(2×2)  → [ 40,  48, 64]
+  Conv2D(3×3,128 filters) + BatchNorm + ReLU (relu4) + MaxPool(2×2)  → [ 20,  24,128]
+  Flatten → 61 440
+  FC(256) + ReLU (relu5)  ← Stage 3 LHL feature source
+  FC(1) → anomaly score (regression)
 ```
 
-Training: ADAM, learning rate `0.0001`, 5 epochs, batch size 32. 80/20 train/validation split (random seed 42). Early stopping if validation RMSE does not improve.
+Training: Adam, learning rate `0.0001`, 5 epochs, batch size 32. 80/20 train/validation split.
+
+**Stage 3 layer configuration:**
+
+| Algorithm | Layers used |
+| --- | --- |
+| LHL | `relu5` |
+| FUSION | `relu1, relu2, relu3, relu4, relu5` |
+| MBM | `{relu1}` \| `{relu2}` \| `{relu3}` \| `{relu4, relu5}` |
 
 **Call forms:**
 
@@ -249,16 +247,24 @@ Flattens each 390×320 image to a 124 800-dim vector and passes it through four 
 
 **Architecture:**
 
-```
-Input 124 800 (flattened 390×320)
-  FC(1024) + ReLU
-  FC(512)  + ReLU
-  FC(256)  + ReLU
-  FC(128)  + ReLU    ← latent features extracted here (relu4)
-  FC(1)   → anomaly score (regression)
+```text
+Input [320, 390, 1] → flatten → 124 800
+  FC(1024) + ReLU (relu1)
+  FC(512)  + ReLU (relu2)
+  FC(256)  + ReLU (relu3)
+  FC(128)  + ReLU (relu4)  ← Stage 3 LHL feature source
+  FC(1) → anomaly score (regression)
 ```
 
-Training: ADAM, learning rate `0.0001`, 5 epochs, batch size 32. Same split and early-stopping logic as `CNN_chex`.
+Training: Adam, learning rate `0.0001`, 5 epochs, batch size 64.
+
+**Stage 3 layer configuration:**
+
+| Algorithm | Layers used |
+| --- | --- |
+| LHL | `relu4` |
+| FUSION | `relu1, relu2, relu3, relu4` |
+| MBM | `{relu1}` \| `{relu2}` \| `{relu3}` \| `{relu4}` |
 
 **Call forms:**
 
@@ -271,57 +277,94 @@ mlp = MLP_chex('chex_train', true);   % force retrain
 
 ---
 
+### `MD3_chex.m` — Stage 3: Latent-Space OOD Post-Filter
+
+Fits a Mahalanobis distance model in the hidden-layer feature space of a trained network and scores test samples against it. One-class training: a single global mean and covariance are estimated from all normal training images. The OOD threshold is the 97.5th percentile of training-set distances.
+
+Three algorithms are supported:
+
+| Algorithm | Feature source | Detector |
+| --- | --- | --- |
+| `LHL` | Last hidden layer only | Single global covariance |
+| `FUSION` | All hidden layers, z-normalised per layer, concatenated | Single global covariance on combined vector |
+| `MBM` | Each architectural branch independently | One detector per branch; OOD if any fires |
+
+**Call forms:**
+
+```matlab
+% Training mode — fit model on in-distribution features
+model = MD3_chex('train', net, networkID, chexRoot, algo, layerConfig);
+
+% Test mode — score new samples
+s3 = MD3_chex('test', net, testImds, model);
+```
+
+**Caches:** `trained_models/stage3_chex_<networkID>_<algo>.mat`
+
+---
+
 ### Utilities
 
 | Script | Purpose |
-|---|---|
-| `visualize_chex_examples.m` | Display a random sample of X-ray images from a folder |
+| --- | --- |
+| `chex_view_examples.m` | Display 10 random X-ray images from a folder in a 2×5 grid |
 | `insert_donut_artifact.m` | Add circular artefacts to normal X-rays to create synthetic abnormal images |
 | `insert_square_artifact.m` | Add rectangular artefacts to normal X-rays |
-| `pad_chex.py` | Python script — pad raw CheXpert images to 390×320 with black borders |
-| `cleanUp.m` | Delete all `.mat` cache files under `trained_models/` |
+| `pad_chex.py` | Python — pad raw CheXpert images to 390×320 with black borders |
+| `chex_cleanUp.m` | Delete all CheXpert `.mat` caches under `trained_models/` |
 
 ---
 
 ## Vigilance Threshold
 
-The vigilance parameter (range `[0, 1]`) controls the acceptance boundary for the manifold-distance stages.
+The vigilance parameter (range `[0, 1]`) controls the Stage 1 acceptance boundary.
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `0.0` | Accept all images — no filtering |
 | `0.5` | Moderate filtering — recommended default |
 | `1.0` | Maximum strictness — rejects nearly all images |
-
-The same threshold is applied to both Stage 1 (pixel manifold) and Stage 3 (latent manifold). Tune it based on the desired false-positive/false-negative trade-off for your application.
 
 ---
 
 ## Output Structures
 
-### `Chex_tester` / `MD_chex` output
+### `Chex_tester` output
 
 | Field | Description |
-|---|---|
-| `MDScores` | Stage 1 manifold distances for all test images |
-| `Accepted` | Logical mask — images passing Stage 1 |
-| `IsOOD` | Logical mask — images rejected by Stage 1 |
-| `AcceptedCount` | Number of images passing Stage 1 |
-| `CNNScores` | Stage 2 regression scores from the CNN (normal ≈ 1.0) |
-| `MLPScores` | Stage 2 regression scores from the MLP |
-| `CombinedScores` | Average of CNN and MLP scores |
-| `LatentScores` | Stage 3 manifold distances in latent space |
-| `LatentAccepted` | Logical mask — images passing Stage 3 |
-| `LatentAcceptedCount` | Number of images passing Stage 3 |
+| --- | --- |
+| `ChexRoot` | Training folder path used |
+| `TestFolder` | Test folder path used |
+| `Stage1RejectThreshold` | Stage 1 vigilance value |
+| `Stage1` | Full `MD1_chex` result struct |
+| `CNN.Stage2Scores` | Regression scores from the CNN on Stage-1-accepted images |
+| `CNN.Network` | Trained CNN network object |
+| `MLP.Stage2Scores` | Regression scores from the MLP |
+| `MLP.Network` | Trained MLP network object |
+| `Stage3.CNN.LHL` / `FUSION` / `MBM` | Stage 3 results per algorithm (CNN) |
+| `Stage3.MLP.LHL` / `FUSION` / `MBM` | Stage 3 results per algorithm (MLP) |
+| `TestFiles` | Cell array of test image file paths |
+
+### `MD1_chex` output
+
+| Field | Description |
+| --- | --- |
+| `NumSamples` | Total test images |
+| `TestFiles` | Cell array of file paths |
+| `Vigilance` | Threshold used |
+| `MDScores` | Per-sample Mahalanobis confidence (higher = more normal) |
+| `NormalizedDist` | Per-sample normalised Mahalanobis distance |
+| `Accepted` / `IsOOD` | Logical masks |
+| `AcceptedCount` / `RejectedCount` | Scalar counts |
 
 ### `CNN_chex` / `MLP_chex` output
 
 | Field | Description |
-|---|---|
-| `net` | Trained MATLAB network object |
-| `Scores` | Predicted anomaly scores on the test split |
-| `RMSE` | Root mean squared error on the test split |
-| `LatentFeatures` | Penultimate-layer activations for the training set |
+| --- | --- |
+| `Network` | Trained MATLAB network object |
+| `TrainScores` | Regression scores on the training set |
+| `TestScores` | Regression scores on the validation split |
+| `RMSE` | Root mean squared error on the validation split |
 
 ---
 
@@ -329,21 +372,19 @@ The same threshold is applied to both Stage 1 (pixel manifold) and Stage 3 (late
 
 All trained models are saved under `trained_models/` and reloaded on subsequent calls when the training folder path matches the cached value.
 
-To force retraining regardless of cache:
+To force retraining:
 
 ```matlab
 CNN_chex('chex_train', true);
 MLP_chex('chex_train', true);
-MD_chex('chex_donut75', 'chex_train', 0.5, true);
+MD1_chex('chex_donut75', 'chex_train', 0.5, true);
 ```
 
-To remove all caches at once:
+To remove all CheXpert caches at once:
 
 ```matlab
-cleanUp();
+chex_cleanUp();
 ```
-
-The train/validation split uses a fixed random seed (`42`) so repeated training runs without a cache produce the same split.
 
 ---
 
@@ -362,13 +403,17 @@ Install or enable the MATLAB Deep Learning Toolbox.
 Lower the vigilance threshold:
 
 ```matlab
-results = Chex_tester('chex_donut75', 'chex_train', 0.3);
+results = Chex_tester('chex_train', 'chex_donut75', 0.3);
 ```
 
 ### Stage 1 accepts all abnormal images
 
-Raise the vigilance threshold or verify that `chex_train` contains only normal images. If the training distribution itself contains artefacts, the manifold will include them as normal.
+Raise the vigilance threshold or verify that `chex_train` contains only normal images.
 
-### High memory usage
+### High memory usage with MLP
 
-`MLP_chex` flattens each 390×320 image to 124 800 features. Training on the full 41 527-image set is memory-intensive. Reduce `batchSize` inside `MLP_chex.m` or work on a subset of `chex_train` if memory is limited.
+`MLP_chex` flattens each 390×320 image to 124 800 features. Training on the full 41 527-image set is memory-intensive. Reduce the batch size inside `MLP_chex.m` or train on a subset of `chex_train`.
+
+### Stage 3 cache mismatch
+
+If either regression network was retrained, delete the corresponding `stage3_chex_*.mat` files from `trained_models/` or run `chex_cleanUp()`.
