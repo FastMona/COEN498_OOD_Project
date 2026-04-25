@@ -1,7 +1,0 @@
-# Ignore all CheXpert dataset folders
-CheXpert*/
-chex_pacemaker/
-chex_train/
-
-# Ignore large trained model cache files
-trained_models/*.mat
