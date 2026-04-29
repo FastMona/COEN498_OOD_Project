@@ -147,17 +147,14 @@ end
 
 function model = trainManifold(XTrain)
 % Build a single-class PCA manifold from training feature vectors.
-% Uses svds for the top NUM_COMPONENTS principal directions only.
+% Uses a memory-aware dual PCA decomposition for top components.
     NUM_COMPONENTS = 50;
 
     mu        = mean(XTrain, 1);
     XCentered = XTrain - mu;
 
     numComp = min(NUM_COMPONENTS, min(size(XCentered)) - 1);
-    [~, S, V] = svds(XCentered, numComp);
-    basis      = V;
-
-    singularValues = diag(S);
+    [basis, singularValues] = computeTopPCABasis(XCentered, numComp);
     latent = (singularValues .^ 2) / max(size(XTrain, 1) - 1, 1);
     latent = max(latent, 1e-6);
 
@@ -175,6 +172,39 @@ function model = trainManifold(XTrain)
     model.latent        = latent;
     model.residualVar   = residualVar;
     model.distanceScale = distanceScale;
+end
+
+function [basis, singularValues] = computeTopPCABasis(XCentered, numComp)
+% Compute principal directions in sample space to avoid svds(single).
+    Xc = double(XCentered);
+    G  = Xc * Xc.';
+    G  = (G + G.') * 0.5;
+
+    opts = struct('issym', true, 'isreal', true);
+    try
+        [U, D] = eigs(G, numComp, 'largestreal', opts);
+    catch
+        % Compatibility fallback for MATLAB releases without 'largestreal'.
+        [U, D] = eigs(G, numComp, 'lm', opts);
+    end
+
+    evals = max(real(diag(D)), 0);
+    [evals, order] = sort(evals, 'descend');
+    U = U(:, order);
+
+    singularValues = sqrt(evals);
+    invS = zeros(size(singularValues));
+    nz = singularValues > 1e-10;
+    invS(nz) = 1 ./ singularValues(nz);
+
+    basis = Xc.' * (U .* reshape(invS, 1, []));
+    [basis, ~] = qr(basis, 0);
+
+    if size(basis, 2) < numComp
+        error('MD1_chex:pcaRank', 'Could not extract %d PCA components.', numComp);
+    end
+    basis = basis(:, 1:numComp);
+    singularValues = singularValues(1:numComp);
 end
 
 function [confidence, normalizedDist] = scoreManifold(model, XTest)
