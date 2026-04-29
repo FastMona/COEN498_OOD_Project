@@ -256,6 +256,9 @@ function img = readAndPreprocess(filename)
 		img = rgb2gray(img);
 	end
 	img = im2single(img);
+	if size(img,1) ~= 320 || size(img,2) ~= 390
+		img = imresize(img, [320 390]);
+	end
 	if ismatrix(img)
 		img = reshape(img, size(img, 1), size(img, 2), 1);
 	end
